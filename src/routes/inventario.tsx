@@ -19,7 +19,7 @@ export const Route = createFileRoute("/inventario")({
       { property: "og:description", content: "Existencias, mínimos y valor del almacén de la cafetería Salúva." },
     ],
   }),
-  component: Inventario;
+  component: Inventario,
 });
 
 function Inventario() {
