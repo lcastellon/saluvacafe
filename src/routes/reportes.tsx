@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { DoodleFlor, DoodleGrano, DoodleTicket, DoodleTrazo } from "@/components/doodles";
 import { mxn, topProductos, ventasPorHora, ventasSemana } from "@/data/saluva";
 import { useTienda } from "@/lib/tienda";
 import { Badge } from "@/components/ui/badge";
@@ -83,7 +84,7 @@ function Reportes() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="surface p-5 lg:col-span-2">
-          <h2 className="text-lg font-semibold">Tendencia diaria</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><DoodleTrazo className="h-2 w-10 text-primary" />Tendencia diaria</h2>
           <div className="mt-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={ventasSemana} margin={{ left: -18, right: 6, top: 6 }}>
@@ -98,7 +99,7 @@ function Reportes() {
         </div>
 
         <div className="surface p-5">
-          <h2 className="text-lg font-semibold">Mezcla por categoría</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><DoodleFlor className="h-5 w-5 text-primary" />Mezcla por categoría</h2>
           <div className="mt-2 h-56">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -140,7 +141,7 @@ function Reportes() {
         </div>
 
         <div className="surface p-5">
-          <h2 className="text-lg font-semibold">Métodos de pago</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><DoodleTicket className="h-5 w-5 text-primary" />Métodos de pago</h2>
           <ul className="mt-4 space-y-3">
             {pagos.map((p) => (
               <li key={p.metodo} className="flex items-center justify-between gap-3">
@@ -150,7 +151,7 @@ function Reportes() {
             ))}
           </ul>
 
-          <h2 className="mt-6 text-lg font-semibold">Productos estrella</h2>
+          <h2 className="mt-6 flex items-center gap-2 text-lg font-semibold"><DoodleGrano className="h-5 w-5 text-primary" />Productos estrella</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {topProductos.map((p) => (
               <li key={p.nombre} className="flex items-center justify-between gap-3">
