@@ -48,13 +48,14 @@ function Kpi({
   icon: typeof Coffee;
 }) {
   return (
-    <div className="surface grain-top p-5">
+    <div className="surface grain-top relative overflow-hidden p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+        <Icon className="h-4 w-4 shrink-0 text-primary" />
       </div>
-      <p className="mt-3 font-display text-3xl">{valor}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detalle}</p>
+      <p className="mt-3 font-display text-3xl font-bold">{valor}</p>
+      <DoodleTrazo className="mt-2 h-1.5 w-16 text-primary/70" />
+      <p className="mt-2 text-xs text-muted-foreground">{detalle}</p>
     </div>
   );
 }
