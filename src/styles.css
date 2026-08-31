@@ -159,10 +159,24 @@
   box-shadow: var(--shadow-soft);
 }
 
+@utility ink-card {
+  background-color: var(--color-card);
+  border: 1.5px solid var(--color-foreground);
+  border-radius: var(--radius-xl);
+}
+
+@utility sketch-underline {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='8' viewBox='0 0 120 8'><path d='M2 5c20-4 38 3 58-1s38-2 58 1' fill='none' stroke='%23E9262E' stroke-width='2.5' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 6px;
+  padding-bottom: 8px;
+}
+
 @utility grain-top {
   background-image: radial-gradient(
     120% 90% at 0% 0%,
-    color-mix(in oklab, var(--color-accent) 16%, transparent),
+    color-mix(in oklab, var(--color-primary) 8%, transparent),
     transparent 60%
   );
 }
