@@ -5,6 +5,7 @@ import { mxnExacto, type Categoria } from "@/data/saluva";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { DoodleTaza } from "@/components/doodles";
 
 export const Route = createFileRoute("/menu")({
   head: () => ({
@@ -35,7 +36,10 @@ function Menu() {
       <div className="space-y-6">
         {orden.map((cat) => (
           <section key={cat}>
-            <h2 className="text-lg font-semibold">{cat}</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <DoodleTaza className="h-5 w-5 text-primary" />
+              {cat}
+            </h2>
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {productos
                 .filter((p) => p.categoria === cat)
