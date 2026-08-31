@@ -35,16 +35,21 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
         <div className="flex items-center gap-3 px-2">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sidebar-primary text-lg font-semibold text-sidebar-primary-foreground">
-            S
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-sidebar-primary text-sidebar-primary">
+            <DoodleTaza className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <p className="truncate font-display text-xl leading-none">Salúva</p>
-            <p className="mt-1 truncate text-xs text-sidebar-foreground/60">Café de barrio</p>
+            <p className="truncate font-display text-xl font-bold uppercase leading-none tracking-tight">
+              Sal<span className="text-sidebar-primary">ú</span>va
+            </p>
+            <p className="mt-1 truncate text-[11px] uppercase tracking-[0.18em] text-sidebar-foreground/55">
+              Café de barrio
+            </p>
           </div>
         </div>
+        <DoodleTrazo className="mt-4 h-2 w-full text-sidebar-primary/70" />
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
           {nav.map(({ to, label, icon: Icon }) => (
