@@ -57,9 +57,9 @@ export function AppShell({
               key={to}
               to={to}
               activeOptions={{ exact: to === "/" }}
-              activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
-              inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent/60" }}
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              activeProps={{ className: "bg-sidebar-primary text-sidebar-primary-foreground" }}
+              inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent" }}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
             >
               <Icon className="h-[18px] w-[18px] shrink-0" />
               <span className="truncate">{label}</span>
@@ -67,18 +67,20 @@ export function AppShell({
           ))}
         </nav>
 
-        <div className="rounded-2xl bg-sidebar-accent/70 p-4">
-          <p className="text-xs text-sidebar-foreground/70">Turno matutino</p>
-          <p className="mt-1 font-display text-lg">Ana Sotelo</p>
+        <div className="relative overflow-hidden rounded-xl border border-sidebar-border p-4">
+          <DoodleFlor className="absolute -right-2 -top-2 h-14 w-14 text-sidebar-primary/30" />
+          <p className="text-[11px] uppercase tracking-[0.16em] text-sidebar-foreground/60">Turno matutino</p>
+          <p className="mt-1 font-display text-lg font-semibold">Ana Sotelo</p>
           <p className="mt-1 text-xs text-sidebar-foreground/60">Caja 1 · abierta desde 07:00</p>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border bg-background/85 px-5 py-4 backdrop-blur sm:flex sm:flex-wrap sm:justify-between lg:px-8">
+        <header className="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border bg-background/90 px-5 py-4 backdrop-blur sm:flex sm:flex-wrap sm:justify-between lg:px-8">
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold sm:text-3xl">{titulo}</h1>
-            <p className="mt-1 truncate text-sm text-muted-foreground">{descripcion}</p>
+            <h1 className="truncate font-display text-2xl font-bold tracking-tight sm:text-3xl">{titulo}</h1>
+            <DoodleTrazo className="mt-1 h-1.5 w-24 text-primary" />
+            <p className="mt-2 truncate text-sm text-muted-foreground">{descripcion}</p>
           </div>
           {acciones ? <div className="flex shrink-0 items-center gap-2">{acciones}</div> : null}
         </header>
@@ -90,7 +92,7 @@ export function AppShell({
               to={to}
               activeOptions={{ exact: to === "/" }}
               activeProps={{ className: "bg-primary text-primary-foreground" }}
-              inactiveProps={{ className: "text-muted-foreground" }}
+              inactiveProps={{ className: "border border-border text-foreground" }}
               className="flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
             >
               <Icon className="h-4 w-4" />
