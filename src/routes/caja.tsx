@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Minus, Plus, Search, Trash2 } from "lucide-react";
+import { DoodleTicket } from "@/components/doodles";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/caja")({
@@ -120,7 +121,7 @@ function Caja() {
               <button
                 key={p.id}
                 onClick={() => agregar(p.id)}
-                className="surface grain-top group p-4 text-left transition-transform hover:-translate-y-0.5"
+                className="surface grain-top group p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground"
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-2xl">{p.emoji}</span>
@@ -140,7 +141,10 @@ function Caja() {
         </div>
 
         <aside className="surface flex h-fit flex-col p-5 xl:sticky xl:top-28">
-          <h2 className="text-lg font-semibold">Ticket actual</h2>
+          <div className="flex items-center gap-2">
+            <DoodleTicket className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Ticket actual</h2>
+          </div>
 
           <div className="mt-4 space-y-3">
             <Input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nombre o mesa" />
@@ -150,7 +154,7 @@ function Caja() {
                   key={c}
                   onClick={() => setCanal(c)}
                   className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                    canal === c ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card"
+                    canal === c ? "border-foreground bg-foreground text-background" : "border-border bg-card"
                   }`}
                 >
                   {c}
@@ -193,7 +197,7 @@ function Caja() {
               <span>IVA ({negocio.iva}%)</span>
               <span>{mxnExacto(iva)}</span>
             </div>
-            <div className="flex justify-between pt-1 font-display text-2xl">
+            <div className="flex justify-between pt-1 font-display text-2xl font-bold">
               <span>Total</span>
               <span>{mxnExacto(total)}</span>
             </div>
