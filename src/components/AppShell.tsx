@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { DoodleTaza, DoodleFlor, DoodleTrazo } from "@/components/doodles";
 import {
   BarChart3,
   Boxes,
