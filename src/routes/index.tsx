@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
+import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn, topProductos, ventasPorHora, ventasSemana } from "@/data/saluva";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,13 +49,14 @@ function Kpi({
   icon: typeof Coffee;
 }) {
   return (
-    <div className="surface grain-top p-5">
+    <div className="surface grain-top relative overflow-hidden p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+        <Icon className="h-4 w-4 shrink-0 text-primary" />
       </div>
-      <p className="mt-3 font-display text-3xl">{valor}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detalle}</p>
+      <p className="mt-3 font-display text-3xl font-bold">{valor}</p>
+      <DoodleTrazo className="mt-2 h-1.5 w-16 text-primary/70" />
+      <p className="mt-2 text-xs text-muted-foreground">{detalle}</p>
     </div>
   );
 }
@@ -122,7 +124,10 @@ function Dashboard() {
         </div>
 
         <div className="surface p-5">
-          <h2 className="text-lg font-semibold">Más vendidos</h2>
+          <div className="flex items-center gap-2">
+            <DoodleGrano className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Más vendidos</h2>
+          </div>
           <ul className="mt-4 space-y-3">
             {topProductos.map((p, i) => (
               <li key={p.nombre} className="flex items-center gap-3">
@@ -144,7 +149,7 @@ function Dashboard() {
         <div className="surface p-5 lg:col-span-2">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Pedidos en barra</h2>
-            <Link to="/pedidos" className="inline-flex items-center gap-1 text-sm text-accent-foreground/80 hover:underline">
+            <Link to="/pedidos" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
               Ver todos <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -191,7 +196,10 @@ function Dashboard() {
       </div>
 
       <div className="surface mt-6 p-5">
-        <h2 className="text-lg font-semibold">Semana en curso</h2>
+        <div className="flex items-center gap-2">
+          <DoodleFlor className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Semana en curso</h2>
+        </div>
         <div className="mt-4 h-56">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={ventasSemana} margin={{ left: -18, right: 6, top: 6 }}>

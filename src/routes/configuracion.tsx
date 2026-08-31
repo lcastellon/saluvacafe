@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { DoodleBolsa, DoodleTicket } from "@/components/doodles";
 import { useTienda } from "@/lib/tienda";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,7 @@ function Configuracion() {
     <AppShell titulo="Configuración" descripcion="Datos del negocio y preferencias de operación">
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="surface p-5">
-          <h2 className="text-lg font-semibold">Datos de la sucursal</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><DoodleBolsa className="h-5 w-5 text-primary" />Datos de la sucursal</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {campo("nombre", "Nombre comercial")}
             {campo("sucursal", "Sucursal")}
@@ -56,7 +57,7 @@ function Configuracion() {
         </section>
 
         <section className="surface p-5">
-          <h2 className="text-lg font-semibold">Cobro</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><DoodleTicket className="h-5 w-5 text-primary" />Cobro</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {campo("iva", "IVA (%)", "number")}
             {campo("propinaSugerida", "Propina sugerida (%)", "number")}
