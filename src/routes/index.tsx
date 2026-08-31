@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
+import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn, topProductos, ventasPorHora, ventasSemana } from "@/data/saluva";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
