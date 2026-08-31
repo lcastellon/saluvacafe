@@ -45,7 +45,7 @@ export function AppShell({
               Sal<span className="text-sidebar-primary">ú</span>va
             </p>
             <p className="mt-1 truncate text-[11px] uppercase tracking-[0.18em] text-sidebar-foreground/55">
-              Café de barrio
+              CAFÉ
             </p>
           </div>
         </div>
