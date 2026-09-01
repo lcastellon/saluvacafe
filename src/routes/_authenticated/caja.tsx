@@ -124,7 +124,7 @@ function Caja() {
               <button
                 key={p.id}
                 onClick={() => agregar(p.id)}
-                className="surface grain-top group p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground"
+                className={`surface grain-top group cursor-pointer p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground active:scale-[0.98] ${tocado === p.id ? "ring-2 ring-primary scale-[0.98] bg-primary/[0.04]" : ""}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-2xl">{p.emoji}</span>
