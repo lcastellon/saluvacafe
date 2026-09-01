@@ -88,26 +88,6 @@ function Dashboard() {
   const criticos = (insumos ?? []).filter(
     (i: Insumo) => Number(i.minimo) > 0 && Number(i.existencia) <= Number(i.minimo) * 0.1,
   );
-  const avisados = useRef<string>("");
-
-  useEffect(() => {
-    if (criticos.length === 0) return;
-    const firma = criticos.map((i) => `${i.id}:${i.existencia}`).sort().join("|");
-    if (avisados.current === firma) return;
-    avisados.current = firma;
-    toast.error(
-      criticos.length === 1
-        ? `Queda menos del 10% de ${criticos[0]!.nombre}`
-        : `${criticos.length} insumos por debajo del 10%`,
-      {
-        description: criticos
-          .map((i) => `${i.nombre}: ${i.existencia} ${i.unidad} (mín. ${i.minimo})`)
-          .join(" · "),
-        duration: 10000,
-      },
-    );
-  }, [criticos]);
-
 
   return (
     <AppShell
