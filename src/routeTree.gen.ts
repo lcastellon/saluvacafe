@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedCajaRouteImport } from './routes/_authenticated/caja'
 import { Route as AuthenticatedInventarioRouteImport } from './routes/_authenticated/inventario'
 import { Route as AuthenticatedMenuRouteImport } from './routes/_authenticated/menu'
@@ -17,6 +18,11 @@ import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminConfiguracionRouteImport } from './routes/_authenticated/_admin/configuracion'
 import { Route as AuthenticatedAdminReportesRouteImport } from './routes/_authenticated/_admin/reportes'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedCajaRoute = AuthenticatedCajaRouteImport.update({
   id: '/_authenticated/caja',
   path: '/caja',
@@ -56,6 +62,7 @@ const AuthenticatedAdminReportesRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/caja': typeof AuthenticatedCajaRoute
   '/inventario': typeof AuthenticatedInventarioRoute
   '/menu': typeof AuthenticatedMenuRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/reportes': typeof AuthenticatedAdminReportesRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/caja': typeof AuthenticatedCajaRoute
   '/inventario': typeof AuthenticatedInventarioRoute
   '/menu': typeof AuthenticatedMenuRoute
@@ -75,6 +83,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_authenticated/caja': typeof AuthenticatedCajaRoute
   '/_authenticated/inventario': typeof AuthenticatedInventarioRoute
   '/_authenticated/menu': typeof AuthenticatedMenuRoute
@@ -86,6 +95,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/caja'
     | '/inventario'
     | '/menu'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
     | '/reportes'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/caja'
     | '/inventario'
     | '/menu'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/reportes'
   id:
     | '__root__'
+    | '/'
     | '/_authenticated/caja'
     | '/_authenticated/inventario'
     | '/_authenticated/menu'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AuthenticatedCajaRoute: typeof AuthenticatedCajaRoute
   AuthenticatedInventarioRoute: typeof AuthenticatedInventarioRoute
   AuthenticatedMenuRoute: typeof AuthenticatedMenuRoute
@@ -125,6 +138,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/caja': {
       id: '/_authenticated/caja'
       path: '/caja'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 }
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AuthenticatedCajaRoute: AuthenticatedCajaRoute,
   AuthenticatedInventarioRoute: AuthenticatedInventarioRoute,
   AuthenticatedMenuRoute: AuthenticatedMenuRoute,
