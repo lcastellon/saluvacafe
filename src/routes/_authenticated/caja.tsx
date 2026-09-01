@@ -42,6 +42,7 @@ function Caja() {
   const [cliente, setCliente] = useState("");
   const [canal, setCanal] = useState<Pedido["canal"]>("Mostrador");
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
+  const [tocado, setTocado] = useState<string | null>(null);
 
   const visibles = useMemo(
     () =>
