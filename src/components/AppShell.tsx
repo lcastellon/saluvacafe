@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { DoodleTaza, DoodleFlor, DoodleTrazo } from "@/components/doodles";
 import {
   BarChart3,
@@ -16,6 +17,8 @@ import {
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { listarInsumos } from "@/lib/inventario.functions";
+
 
 const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[] = [
   { to: "/panel", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +30,14 @@ const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[
   { to: "/personal", label: "Personal", icon: Users, soloAdmin: true },
   { to: "/configuracion", label: "Configuración", icon: Settings, soloAdmin: true },
 ];
+
+type Insumo = {
+  id: string;
+  nombre: string;
+  unidad: string;
+  existencia: number;
+  minimo: number;
+};
 
 export function AppShell({
   titulo,
@@ -42,6 +53,15 @@ export function AppShell({
   const { perfil, esAdmin } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const listar = useServerFn(listarInsumos);
+
+  const { data: insumos } = useQuery({
+    queryKey: ["insumos"],
+    queryFn: () => listar() as Promise<Insumo[]>,
+  });
+
+  const faltantes =
+    (insumos ?? []).filter((i) => i.minimo > 0 && Number(i.existencia) <= Number(i.minimo) * 0.1).length;
 
   const items = nav.filter((n) => !n.soloAdmin || esAdmin);
 
@@ -71,18 +91,26 @@ export function AppShell({
         <DoodleTrazo className="mt-4 h-2 w-full text-sidebar-primary/70" />
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {items.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              activeProps={{ className: "bg-sidebar-primary text-sidebar-primary-foreground" }}
-              inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent" }}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-            >
-              <Icon className="h-[18px] w-[18px] shrink-0" />
-              <span className="truncate">{label}</span>
-            </Link>
-          ))}
+          {items.map(({ to, label, icon: Icon }) => {
+            const mostrarGlobo = to === "/inventario" && faltantes > 0;
+            return (
+              <Link
+                key={to}
+                to={to}
+                activeProps={{ className: "bg-sidebar-primary text-sidebar-primary-foreground" }}
+                inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent" }}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+              >
+                <Icon className="h-[18px] w-[18px] shrink-0" />
+                <span className="flex-1 truncate">{label}</span>
+                {mostrarGlobo && (
+                  <span className="grid h-5 min-w-[1.25rem] shrink-0 place-items-center rounded-full border border-destructive bg-background px-1.5 text-[11px] font-bold text-destructive">
+                    {faltantes}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="relative overflow-hidden rounded-xl border border-sidebar-border p-4">
@@ -124,18 +152,26 @@ export function AppShell({
         </header>
 
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-cream px-4 py-2 md:hidden">
-          {items.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              activeProps={{ className: "bg-primary text-primary-foreground" }}
-              inactiveProps={{ className: "border border-border text-foreground" }}
-              className="flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </Link>
-          ))}
+          {items.map(({ to, label, icon: Icon }) => {
+            const mostrarGlobo = to === "/inventario" && faltantes > 0;
+            return (
+              <Link
+                key={to}
+                to={to}
+                activeProps={{ className: "bg-primary text-primary-foreground" }}
+                inactiveProps={{ className: "border border-border text-foreground" }}
+                className="relative flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+                {mostrarGlobo && (
+                  <span className="grid h-4 min-w-[1rem] place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {faltantes}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <main className="flex-1 px-5 py-6 lg:px-8">{children}</main>
