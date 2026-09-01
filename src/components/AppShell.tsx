@@ -1,25 +1,31 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { DoodleTaza, DoodleFlor, DoodleTrazo } from "@/components/doodles";
 import {
   BarChart3,
   Boxes,
   Coffee,
   LayoutDashboard,
+  LogOut,
   ReceiptText,
   Settings,
   ShoppingBag,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 
-const nav: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[] = [
+  { to: "/panel", label: "Dashboard", icon: LayoutDashboard },
   { to: "/caja", label: "Punto de venta", icon: ShoppingBag },
   { to: "/pedidos", label: "Pedidos activos", icon: ReceiptText },
   { to: "/menu", label: "Menú y productos", icon: Coffee },
   { to: "/inventario", label: "Inventario", icon: Boxes },
-  { to: "/reportes", label: "Reportes", icon: BarChart3 },
-  { to: "/configuracion", label: "Configuración", icon: Settings },
+  { to: "/reportes", label: "Reportes", icon: BarChart3, soloAdmin: true },
+  { to: "/personal", label: "Personal", icon: Users, soloAdmin: true },
+  { to: "/configuracion", label: "Configuración", icon: Settings, soloAdmin: true },
 ];
 
 export function AppShell({
@@ -33,6 +39,19 @@ export function AppShell({
   acciones?: ReactNode;
   children: ReactNode;
 }) {
+  const { perfil, esAdmin } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const items = nav.filter((n) => !n.soloAdmin || esAdmin);
+
+  const salir = async () => {
+    await qc.cancelQueries();
+    qc.clear();
+    await supabase.auth.signOut();
+    void navigate({ to: "/", replace: true });
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
@@ -52,11 +71,10 @@ export function AppShell({
         <DoodleTrazo className="mt-4 h-2 w-full text-sidebar-primary/70" />
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {nav.map(({ to, label, icon: Icon }) => (
+          {items.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
-              activeOptions={{ exact: to === "/" }}
               activeProps={{ className: "bg-sidebar-primary text-sidebar-primary-foreground" }}
               inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent" }}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
@@ -69,9 +87,20 @@ export function AppShell({
 
         <div className="relative overflow-hidden rounded-xl border border-sidebar-border p-4">
           <DoodleFlor className="absolute -right-2 -top-2 h-14 w-14 text-sidebar-primary/30" />
-          <p className="text-[11px] uppercase tracking-[0.16em] text-sidebar-foreground/60">Turno matutino</p>
-          <p className="mt-1 font-display text-lg font-semibold">Ana Sotelo</p>
-          <p className="mt-1 text-xs text-sidebar-foreground/60">Caja 1 · abierta desde 07:00</p>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-sidebar-foreground/60">
+            {esAdmin ? "Administración" : "Turno en curso"}
+          </p>
+          <p className="mt-1 truncate font-display text-lg font-semibold">{perfil?.nombre ?? "Salúva"}</p>
+          <p className="mt-1 text-xs text-sidebar-foreground/60">
+            Código {perfil?.codigo ?? "······"} · Caja 1
+          </p>
+          <button
+            onClick={salir}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-sidebar-border px-3 py-2 text-xs font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Cerrar sesión
+          </button>
         </div>
       </aside>
 
@@ -82,15 +111,23 @@ export function AppShell({
             <DoodleTrazo className="mt-1 h-1.5 w-24 text-primary" />
             <p className="mt-2 truncate text-sm text-muted-foreground">{descripcion}</p>
           </div>
-          {acciones ? <div className="flex shrink-0 items-center gap-2">{acciones}</div> : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {acciones}
+            <button
+              onClick={salir}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium transition-colors hover:bg-accent md:hidden"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Salir
+            </button>
+          </div>
         </header>
 
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-cream px-4 py-2 md:hidden">
-          {nav.map(({ to, label, icon: Icon }) => (
+          {items.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
-              activeOptions={{ exact: to === "/" }}
               activeProps={{ className: "bg-primary text-primary-foreground" }}
               inactiveProps={{ className: "border border-border text-foreground" }}
               className="flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
