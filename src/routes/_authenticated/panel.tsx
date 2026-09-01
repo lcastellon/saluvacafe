@@ -221,6 +221,17 @@ function Dashboard() {
             <TriangleAlert className="h-4 w-4 text-warning" />
             <h2 className="text-lg font-semibold">Inventario bajo</h2>
           </div>
+          {criticos.length > 0 && (
+            <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">
+                Crítico · menos del 10%
+              </p>
+              <p className="mt-1 text-sm text-destructive">
+                {criticos.map((i) => `${i.nombre} (${i.existencia} ${i.unidad})`).join(", ")}
+              </p>
+            </div>
+          )}
+
           <ul className="mt-4 space-y-3">
             {bajos.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-3">
