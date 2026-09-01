@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { DoodleTaza, DoodleFlor, DoodleTrazo } from "@/components/doodles";
 import {
   BarChart3,
@@ -16,6 +17,8 @@ import {
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { listarInsumos } from "@/lib/inventario.functions";
+
 
 const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[] = [
   { to: "/panel", label: "Dashboard", icon: LayoutDashboard },
