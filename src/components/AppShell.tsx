@@ -152,18 +152,26 @@ export function AppShell({
         </header>
 
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-cream px-4 py-2 md:hidden">
-          {items.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              activeProps={{ className: "bg-primary text-primary-foreground" }}
-              inactiveProps={{ className: "border border-border text-foreground" }}
-              className="flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </Link>
-          ))}
+          {items.map(({ to, label, icon: Icon }) => {
+            const mostrarGlobo = to === "/inventario" && faltantes > 0;
+            return (
+              <Link
+                key={to}
+                to={to}
+                activeProps={{ className: "bg-primary text-primary-foreground" }}
+                inactiveProps={{ className: "border border-border text-foreground" }}
+                className="relative flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+                {mostrarGlobo && (
+                  <span className="grid h-4 min-w-[1rem] place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {faltantes}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <main className="flex-1 px-5 py-6 lg:px-8">{children}</main>
