@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
 import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn, topProductos, ventasPorHora, ventasSemana } from "@/data/saluva";
+import { listarInsumos } from "@/lib/inventario.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Coffee, CupSoda, Receipt, TrendingUp, TriangleAlert } from "lucide-react";
