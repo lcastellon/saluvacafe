@@ -31,6 +31,14 @@ const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[
   { to: "/configuracion", label: "Configuración", icon: Settings, soloAdmin: true },
 ];
 
+type Insumo = {
+  id: string;
+  nombre: string;
+  unidad: string;
+  existencia: number;
+  minimo: number;
+};
+
 export function AppShell({
   titulo,
   descripcion,
@@ -45,6 +53,15 @@ export function AppShell({
   const { perfil, esAdmin } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const listar = useServerFn(listarInsumos);
+
+  const { data: insumos } = useQuery({
+    queryKey: ["insumos"],
+    queryFn: () => listar() as Promise<Insumo[]>,
+  });
+
+  const faltantes =
+    (insumos ?? []).filter((i) => i.minimo > 0 && Number(i.existencia) <= Number(i.minimo) * 0.1).length;
 
   const items = nav.filter((n) => !n.soloAdmin || esAdmin);
 
