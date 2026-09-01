@@ -64,12 +64,27 @@ function Kpi({
   );
 }
 
+type Insumo = {
+  id: string;
+  nombre: string;
+  unidad: string;
+  existencia: number;
+  minimo: number;
+  costo_unitario: number;
+  proveedor: string;
+};
+
 function Dashboard() {
-  const { pedidos, insumos } = useTienda();
+  const { pedidos } = useTienda();
+  const listar = useServerFn(listarInsumos);
+  const { data: insumos } = useQuery({
+    queryKey: ["insumos"],
+    queryFn: () => listar() as Promise<Insumo[]>,
+  });
   const ventasDia = ventasPorHora.reduce((s, v) => s + v.ventas, 0);
   const tickets = 176;
   const activos = pedidos.filter((p) => p.estado !== "Entregado");
-  const bajos = insumos.filter((i) => i.existencia <= i.minimo);
+  const bajos = (insumos ?? []).filter((i: Insumo) => Number(i.existencia) <= Number(i.minimo));
 
   return (
     <AppShell
