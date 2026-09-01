@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -85,6 +87,29 @@ function Dashboard() {
   const tickets = 176;
   const activos = pedidos.filter((p) => p.estado !== "Entregado");
   const bajos = (insumos ?? []).filter((i: Insumo) => Number(i.existencia) <= Number(i.minimo));
+  const criticos = (insumos ?? []).filter(
+    (i: Insumo) => Number(i.minimo) > 0 && Number(i.existencia) <= Number(i.minimo) * 0.1,
+  );
+  const avisados = useRef<string>("");
+
+  useEffect(() => {
+    if (criticos.length === 0) return;
+    const firma = criticos.map((i) => `${i.id}:${i.existencia}`).sort().join("|");
+    if (avisados.current === firma) return;
+    avisados.current = firma;
+    toast.error(
+      criticos.length === 1
+        ? `Queda menos del 10% de ${criticos[0]!.nombre}`
+        : `${criticos.length} insumos por debajo del 10%`,
+      {
+        description: criticos
+          .map((i) => `${i.nombre}: ${i.existencia} ${i.unidad} (mín. ${i.minimo})`)
+          .join(" · "),
+        duration: 10000,
+      },
+    );
+  }, [criticos]);
+
 
   return (
     <AppShell
@@ -196,6 +221,17 @@ function Dashboard() {
             <TriangleAlert className="h-4 w-4 text-warning" />
             <h2 className="text-lg font-semibold">Inventario bajo</h2>
           </div>
+          {criticos.length > 0 && (
+            <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">
+                Crítico · menos del 10%
+              </p>
+              <p className="mt-1 text-sm text-destructive">
+                {criticos.map((i) => `${i.nombre} (${i.existencia} ${i.unidad})`).join(", ")}
+              </p>
+            </div>
+          )}
+
           <ul className="mt-4 space-y-3">
             {bajos.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-3">
