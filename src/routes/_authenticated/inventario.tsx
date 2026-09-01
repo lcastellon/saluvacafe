@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Minus, Plus } from "lucide-react";
 import { DoodleCaja } from "@/components/doodles";
 
-export const Route = createFileRoute("/inventario")({
+export const Route = createFileRoute("/_authenticated/inventario")({
   head: () => ({
     meta: [
       { title: "Inventario de insumos · Salúva" },

@@ -13,7 +13,7 @@ const iconos = {
   Entregado: DoodleBolsa,
 } as const;
 
-export const Route = createFileRoute("/pedidos")({
+export const Route = createFileRoute("/_authenticated/pedidos")({
   head: () => ({
     meta: [
       { title: "Pedidos activos · Salúva" },

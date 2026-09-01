@@ -19,7 +19,7 @@ import {
   YAxis,
 } from "recharts";
 
-export const Route = createFileRoute("/reportes")({
+export const Route = createFileRoute("/_authenticated/_admin/reportes")({
   head: () => ({
     meta: [
       { title: "Reportes de ventas · Salúva" },

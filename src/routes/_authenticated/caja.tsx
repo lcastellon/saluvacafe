@@ -10,7 +10,7 @@ import { Minus, Plus, Search, Trash2 } from "lucide-react";
 import { DoodleTicket } from "@/components/doodles";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/caja")({
+export const Route = createFileRoute("/_authenticated/caja")({
   head: () => ({
     meta: [
       { title: "Punto de venta · Salúva" },

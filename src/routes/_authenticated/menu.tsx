@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { DoodleTaza } from "@/components/doodles";
 
-export const Route = createFileRoute("/menu")({
+export const Route = createFileRoute("/_authenticated/menu")({
   head: () => ({
     meta: [
       { title: "Menú y productos · Salúva" },

@@ -10,115 +10,151 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CajaRouteImport } from './routes/caja'
-import { Route as ConfiguracionRouteImport } from './routes/configuracion'
-import { Route as InventarioRouteImport } from './routes/inventario'
-import { Route as MenuRouteImport } from './routes/menu'
-import { Route as PedidosRouteImport } from './routes/pedidos'
-import { Route as ReportesRouteImport } from './routes/reportes'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/_admin/route'
+import { Route as AuthenticatedCajaRouteImport } from './routes/_authenticated/caja'
+import { Route as AuthenticatedInventarioRouteImport } from './routes/_authenticated/inventario'
+import { Route as AuthenticatedMenuRouteImport } from './routes/_authenticated/menu'
+import { Route as AuthenticatedPanelRouteImport } from './routes/_authenticated/panel'
+import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticated/pedidos'
+import { Route as AuthenticatedAdminConfiguracionRouteImport } from './routes/_authenticated/_admin/configuracion'
+import { Route as AuthenticatedAdminPersonalRouteImport } from './routes/_authenticated/_admin/personal'
+import { Route as AuthenticatedAdminReportesRouteImport } from './routes/_authenticated/_admin/reportes'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CajaRoute = CajaRouteImport.update({
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCajaRoute = AuthenticatedCajaRouteImport.update({
   id: '/caja',
   path: '/caja',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ConfiguracionRoute = ConfiguracionRouteImport.update({
-  id: '/configuracion',
-  path: '/configuracion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InventarioRoute = InventarioRouteImport.update({
+const AuthenticatedInventarioRoute = AuthenticatedInventarioRouteImport.update({
   id: '/inventario',
   path: '/inventario',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const MenuRoute = MenuRouteImport.update({
+const AuthenticatedMenuRoute = AuthenticatedMenuRouteImport.update({
   id: '/menu',
   path: '/menu',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const PedidosRoute = PedidosRouteImport.update({
+const AuthenticatedPanelRoute = AuthenticatedPanelRouteImport.update({
+  id: '/panel',
+  path: '/panel',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPedidosRoute = AuthenticatedPedidosRouteImport.update({
   id: '/pedidos',
   path: '/pedidos',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ReportesRoute = ReportesRouteImport.update({
-  id: '/reportes',
-  path: '/reportes',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const AuthenticatedAdminConfiguracionRoute =
+  AuthenticatedAdminConfiguracionRouteImport.update({
+    id: '/configuracion',
+    path: '/configuracion',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminPersonalRoute =
+  AuthenticatedAdminPersonalRouteImport.update({
+    id: '/personal',
+    path: '/personal',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminReportesRoute =
+  AuthenticatedAdminReportesRouteImport.update({
+    id: '/reportes',
+    path: '/reportes',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/caja': typeof CajaRoute
-  '/configuracion': typeof ConfiguracionRoute
-  '/inventario': typeof InventarioRoute
-  '/menu': typeof MenuRoute
-  '/pedidos': typeof PedidosRoute
-  '/reportes': typeof ReportesRoute
+  '/caja': typeof AuthenticatedCajaRoute
+  '/inventario': typeof AuthenticatedInventarioRoute
+  '/menu': typeof AuthenticatedMenuRoute
+  '/panel': typeof AuthenticatedPanelRoute
+  '/pedidos': typeof AuthenticatedPedidosRoute
+  '/configuracion': typeof AuthenticatedAdminConfiguracionRoute
+  '/personal': typeof AuthenticatedAdminPersonalRoute
+  '/reportes': typeof AuthenticatedAdminReportesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/caja': typeof CajaRoute
-  '/configuracion': typeof ConfiguracionRoute
-  '/inventario': typeof InventarioRoute
-  '/menu': typeof MenuRoute
-  '/pedidos': typeof PedidosRoute
-  '/reportes': typeof ReportesRoute
+  '/caja': typeof AuthenticatedCajaRoute
+  '/inventario': typeof AuthenticatedInventarioRoute
+  '/menu': typeof AuthenticatedMenuRoute
+  '/panel': typeof AuthenticatedPanelRoute
+  '/pedidos': typeof AuthenticatedPedidosRoute
+  '/configuracion': typeof AuthenticatedAdminConfiguracionRoute
+  '/personal': typeof AuthenticatedAdminPersonalRoute
+  '/reportes': typeof AuthenticatedAdminReportesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/caja': typeof CajaRoute
-  '/configuracion': typeof ConfiguracionRoute
-  '/inventario': typeof InventarioRoute
-  '/menu': typeof MenuRoute
-  '/pedidos': typeof PedidosRoute
-  '/reportes': typeof ReportesRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/_authenticated/_admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/_authenticated/caja': typeof AuthenticatedCajaRoute
+  '/_authenticated/inventario': typeof AuthenticatedInventarioRoute
+  '/_authenticated/menu': typeof AuthenticatedMenuRoute
+  '/_authenticated/panel': typeof AuthenticatedPanelRoute
+  '/_authenticated/pedidos': typeof AuthenticatedPedidosRoute
+  '/_authenticated/_admin/configuracion': typeof AuthenticatedAdminConfiguracionRoute
+  '/_authenticated/_admin/personal': typeof AuthenticatedAdminPersonalRoute
+  '/_authenticated/_admin/reportes': typeof AuthenticatedAdminReportesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/caja'
-    | '/configuracion'
     | '/inventario'
     | '/menu'
+    | '/panel'
     | '/pedidos'
+    | '/configuracion'
+    | '/personal'
     | '/reportes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/caja'
-    | '/configuracion'
     | '/inventario'
     | '/menu'
+    | '/panel'
     | '/pedidos'
+    | '/configuracion'
+    | '/personal'
     | '/reportes'
   id:
     | '__root__'
     | '/'
-    | '/caja'
-    | '/configuracion'
-    | '/inventario'
-    | '/menu'
-    | '/pedidos'
-    | '/reportes'
+    | '/_authenticated'
+    | '/_authenticated/_admin'
+    | '/_authenticated/caja'
+    | '/_authenticated/inventario'
+    | '/_authenticated/menu'
+    | '/_authenticated/panel'
+    | '/_authenticated/pedidos'
+    | '/_authenticated/_admin/configuracion'
+    | '/_authenticated/_admin/personal'
+    | '/_authenticated/_admin/reportes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CajaRoute: typeof CajaRoute
-  ConfiguracionRoute: typeof ConfiguracionRoute
-  InventarioRoute: typeof InventarioRoute
-  MenuRoute: typeof MenuRoute
-  PedidosRoute: typeof PedidosRoute
-  ReportesRoute: typeof ReportesRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -130,59 +166,121 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/caja': {
-      id: '/caja'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/_admin': {
+      id: '/_authenticated/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/caja': {
+      id: '/_authenticated/caja'
       path: '/caja'
       fullPath: '/caja'
-      preLoaderRoute: typeof CajaRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedCajaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/configuracion': {
-      id: '/configuracion'
-      path: '/configuracion'
-      fullPath: '/configuracion'
-      preLoaderRoute: typeof ConfiguracionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inventario': {
-      id: '/inventario'
+    '/_authenticated/inventario': {
+      id: '/_authenticated/inventario'
       path: '/inventario'
       fullPath: '/inventario'
-      preLoaderRoute: typeof InventarioRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedInventarioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/menu': {
-      id: '/menu'
+    '/_authenticated/menu': {
+      id: '/_authenticated/menu'
       path: '/menu'
       fullPath: '/menu'
-      preLoaderRoute: typeof MenuRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedMenuRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/pedidos': {
-      id: '/pedidos'
+    '/_authenticated/panel': {
+      id: '/_authenticated/panel'
+      path: '/panel'
+      fullPath: '/panel'
+      preLoaderRoute: typeof AuthenticatedPanelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pedidos': {
+      id: '/_authenticated/pedidos'
       path: '/pedidos'
       fullPath: '/pedidos'
-      preLoaderRoute: typeof PedidosRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedPedidosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/reportes': {
-      id: '/reportes'
+    '/_authenticated/_admin/configuracion': {
+      id: '/_authenticated/_admin/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof AuthenticatedAdminConfiguracionRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/_admin/personal': {
+      id: '/_authenticated/_admin/personal'
+      path: '/personal'
+      fullPath: '/personal'
+      preLoaderRoute: typeof AuthenticatedAdminPersonalRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/_admin/reportes': {
+      id: '/_authenticated/_admin/reportes'
       path: '/reportes'
       fullPath: '/reportes'
-      preLoaderRoute: typeof ReportesRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedAdminReportesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
     }
   }
 }
 
+interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminConfiguracionRoute: typeof AuthenticatedAdminConfiguracionRoute
+  AuthenticatedAdminPersonalRoute: typeof AuthenticatedAdminPersonalRoute
+  AuthenticatedAdminReportesRoute: typeof AuthenticatedAdminReportesRoute
+}
+
+const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
+  {
+    AuthenticatedAdminConfiguracionRoute: AuthenticatedAdminConfiguracionRoute,
+    AuthenticatedAdminPersonalRoute: AuthenticatedAdminPersonalRoute,
+    AuthenticatedAdminReportesRoute: AuthenticatedAdminReportesRoute,
+  }
+
+const AuthenticatedAdminRouteRouteWithChildren =
+  AuthenticatedAdminRouteRoute._addFileChildren(
+    AuthenticatedAdminRouteRouteChildren,
+  )
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
+  AuthenticatedCajaRoute: typeof AuthenticatedCajaRoute
+  AuthenticatedInventarioRoute: typeof AuthenticatedInventarioRoute
+  AuthenticatedMenuRoute: typeof AuthenticatedMenuRoute
+  AuthenticatedPanelRoute: typeof AuthenticatedPanelRoute
+  AuthenticatedPedidosRoute: typeof AuthenticatedPedidosRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
+  AuthenticatedCajaRoute: AuthenticatedCajaRoute,
+  AuthenticatedInventarioRoute: AuthenticatedInventarioRoute,
+  AuthenticatedMenuRoute: AuthenticatedMenuRoute,
+  AuthenticatedPanelRoute: AuthenticatedPanelRoute,
+  AuthenticatedPedidosRoute: AuthenticatedPedidosRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CajaRoute: CajaRoute,
-  ConfiguracionRoute: ConfiguracionRoute,
-  InventarioRoute: InventarioRoute,
-  MenuRoute: MenuRoute,
-  PedidosRoute: PedidosRoute,
-  ReportesRoute: ReportesRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

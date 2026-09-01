@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/configuracion")({
+export const Route = createFileRoute("/_authenticated/_admin/configuracion")({
   head: () => ({
     meta: [
       { title: "Configuración del negocio · Salúva" },
