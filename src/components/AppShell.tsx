@@ -91,18 +91,26 @@ export function AppShell({
         <DoodleTrazo className="mt-4 h-2 w-full text-sidebar-primary/70" />
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {items.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              activeProps={{ className: "bg-sidebar-primary text-sidebar-primary-foreground" }}
-              inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent" }}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-            >
-              <Icon className="h-[18px] w-[18px] shrink-0" />
-              <span className="truncate">{label}</span>
-            </Link>
-          ))}
+          {items.map(({ to, label, icon: Icon }) => {
+            const mostrarGlobo = to === "/inventario" && faltantes > 0;
+            return (
+              <Link
+                key={to}
+                to={to}
+                activeProps={{ className: "bg-sidebar-primary text-sidebar-primary-foreground" }}
+                inactiveProps={{ className: "text-sidebar-foreground/70 hover:bg-sidebar-accent" }}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+              >
+                <Icon className="h-[18px] w-[18px] shrink-0" />
+                <span className="flex-1 truncate">{label}</span>
+                {mostrarGlobo && (
+                  <span className="grid h-5 min-w-[1.25rem] shrink-0 place-items-center rounded-full border border-destructive bg-background px-1.5 text-[11px] font-bold text-destructive">
+                    {faltantes}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="relative overflow-hidden rounded-xl border border-sidebar-border p-4">
