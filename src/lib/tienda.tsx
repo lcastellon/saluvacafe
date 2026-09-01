@@ -1,10 +1,8 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import {
-  insumos as insumosSeed,
   pedidosIniciales,
   productos as productosSeed,
   type EstadoPedido,
-  type Insumo,
   type LineaPedido,
   type Pedido,
   type Producto,
@@ -23,13 +21,11 @@ type Negocio = {
 
 type Ctx = {
   productos: Producto[];
-  insumos: Insumo[];
   pedidos: Pedido[];
   negocio: Negocio;
   setNegocio: (n: Negocio) => void;
   toggleProducto: (id: string) => void;
   actualizarPrecio: (id: string, precio: number) => void;
-  ajustarInsumo: (id: string, delta: number) => void;
   cambiarEstado: (id: string, estado: EstadoPedido) => void;
   crearPedido: (args: {
     cliente: string;
@@ -43,7 +39,6 @@ const TiendaContext = createContext<Ctx | null>(null);
 
 export function TiendaProvider({ children }: { children: ReactNode }) {
   const [productos, setProductos] = useState<Producto[]>(productosSeed);
-  const [insumos, setInsumos] = useState<Insumo[]>(insumosSeed);
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales);
   const [folio, setFolio] = useState(1048);
   const [negocio, setNegocio] = useState<Negocio>({
@@ -60,7 +55,6 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       productos,
-      insumos,
       pedidos,
       negocio,
       setNegocio,
@@ -68,12 +62,6 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, activo: !p.activo } : p))),
       actualizarPrecio: (id, precio) =>
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, precio } : p))),
-      ajustarInsumo: (id, delta) =>
-        setInsumos((prev) =>
-          prev.map((i) =>
-            i.id === id ? { ...i, existencia: Math.max(0, Math.round((i.existencia + delta) * 10) / 10) } : i,
-          ),
-        ),
       cambiarEstado: (id, estado) =>
         setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p))),
       crearPedido: ({ cliente, canal, metodoPago, items }) => {
@@ -93,7 +81,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         return nuevo;
       },
     }),
-    [productos, insumos, pedidos, negocio, folio],
+    [productos, pedidos, negocio, folio],
   );
 
   return <TiendaContext.Provider value={value}>{children}</TiendaContext.Provider>;
