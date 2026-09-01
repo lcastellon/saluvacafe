@@ -18,7 +18,7 @@ import {
   YAxis,
 } from "recharts";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/panel")({
   head: () => ({
     meta: [
       { title: "Dashboard · Salúva Punto de Venta" },
