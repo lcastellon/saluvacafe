@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      insumos: {
+        Row: {
+          activo: boolean
+          costo_unitario: number
+          created_at: string
+          existencia: number
+          id: string
+          minimo: number
+          nombre: string
+          proveedor: string
+          unidad: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          costo_unitario?: number
+          created_at?: string
+          existencia?: number
+          id?: string
+          minimo?: number
+          nombre: string
+          proveedor?: string
+          unidad: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          costo_unitario?: number
+          created_at?: string
+          existencia?: number
+          id?: string
+          minimo?: number
+          nombre?: string
+          proveedor?: string
+          unidad?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       perfiles: {
         Row: {
           activo: boolean
