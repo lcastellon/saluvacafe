@@ -100,6 +100,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ajustar_existencia: {
+        Args: { p_delta: number; p_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
