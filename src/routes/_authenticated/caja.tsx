@@ -42,6 +42,7 @@ function Caja() {
   const [cliente, setCliente] = useState("");
   const [canal, setCanal] = useState<Pedido["canal"]>("Mostrador");
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
+  const [tocado, setTocado] = useState<string | null>(null);
 
   const visibles = useMemo(
     () =>
@@ -60,6 +61,8 @@ function Caja() {
 
   const agregar = (id: string) => {
     const p = productos.find((x) => x.id === id)!;
+    setTocado(id);
+    setTimeout(() => setTocado((current) => (current === id ? null : current)), 180);
     setItems((prev) => {
       const found = prev.find((i) => i.productoId === id);
       if (found) return prev.map((i) => (i.productoId === id ? { ...i, cantidad: i.cantidad + 1 } : i));
@@ -121,7 +124,7 @@ function Caja() {
               <button
                 key={p.id}
                 onClick={() => agregar(p.id)}
-                className="surface grain-top group p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground"
+                className={`surface grain-top group cursor-pointer p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground active:scale-[0.98] ${tocado === p.id ? "scale-[0.97] !border-primary bg-primary/[0.10]" : ""}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-2xl">{p.emoji}</span>
