@@ -61,6 +61,8 @@ function Caja() {
 
   const agregar = (id: string) => {
     const p = productos.find((x) => x.id === id)!;
+    setTocado(id);
+    setTimeout(() => setTocado((current) => (current === id ? null : current)), 180);
     setItems((prev) => {
       const found = prev.find((i) => i.productoId === id);
       if (found) return prev.map((i) => (i.productoId === id ? { ...i, cantidad: i.cantidad + 1 } : i));
