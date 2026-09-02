@@ -49,6 +49,7 @@ function Menu() {
   const [costo, setCosto] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [emoji, setEmoji] = useState("☕");
+  const [productoAEliminar, setProductoAEliminar] = useState<Producto | null>(null);
 
   const limpiar = () => {
     setNombre("");
