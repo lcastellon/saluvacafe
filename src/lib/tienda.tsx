@@ -26,6 +26,8 @@ type Ctx = {
   setNegocio: (n: Negocio) => void;
   toggleProducto: (id: string) => void;
   actualizarPrecio: (id: string, precio: number) => void;
+  crearProducto: (p: Omit<Producto, "id">) => void;
+  eliminarProducto: (id: string) => void;
   cambiarEstado: (id: string, estado: EstadoPedido) => void;
   crearPedido: (args: {
     cliente: string;
@@ -34,6 +36,7 @@ type Ctx = {
     items: LineaPedido[];
   }) => Pedido;
 };
+
 
 const TiendaContext = createContext<Ctx | null>(null);
 
@@ -62,6 +65,10 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, activo: !p.activo } : p))),
       actualizarPrecio: (id, precio) =>
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, precio } : p))),
+      crearProducto: (p) =>
+        setProductos((prev) => [{ ...p, id: `p-${Date.now()}-${prev.length}` }, ...prev]),
+      eliminarProducto: (id) => setProductos((prev) => prev.filter((p) => p.id !== id)),
+
       cambiarEstado: (id, estado) =>
         setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p))),
       crearPedido: ({ cliente, canal, metodoPago, items }) => {

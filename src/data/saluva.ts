@@ -57,7 +57,38 @@ export const insumos: Insumo[] = [
 
 export type EstadoPedido = "En preparación" | "Listo" | "Entregado";
 
-export type LineaPedido = { productoId: string; nombre: string; cantidad: number; precio: number };
+export type LineaPedido = {
+  lineaId?: string;
+  productoId: string;
+  nombre: string;
+  cantidad: number;
+  precio: number;
+  opciones?: string[];
+};
+
+/* ---------- Modificadores ---------- */
+
+export type OpcionModificador = { valor: string; extra: number };
+
+export const TAMANOS: OpcionModificador[] = [
+  { valor: "Chico", extra: -6 },
+  { valor: "Mediano", extra: 0 },
+  { valor: "Grande", extra: 10 },
+];
+
+export const LECHES: OpcionModificador[] = [
+  { valor: "Entera", extra: 0 },
+  { valor: "Deslactosada", extra: 5 },
+  { valor: "Avena", extra: 12 },
+  { valor: "Almendra", extra: 12 },
+];
+
+export const EXTRA_SHOT = 15;
+
+export const categoriasConBebida: Categoria[] = ["Café caliente", "Café frío", "Infusiones"];
+
+export const esBebida = (categoria: Categoria) => categoriasConBebida.includes(categoria);
+
 
 export type Pedido = {
   id: string;
