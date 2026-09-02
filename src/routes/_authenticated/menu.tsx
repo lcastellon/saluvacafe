@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import type { Producto } from "@/data/saluva";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
 import { mxnExacto, esBebida, type Categoria } from "@/data/saluva";
