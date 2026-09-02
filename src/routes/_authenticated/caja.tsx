@@ -2,12 +2,32 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
-import { mxnExacto, type Categoria, type LineaPedido, type Pedido } from "@/data/saluva";
+import {
+  mxnExacto,
+  esBebida,
+  TAMANOS,
+  LECHES,
+  EXTRA_SHOT,
+  type Categoria,
+  type LineaPedido,
+  type Pedido,
+  type Producto,
+} from "@/data/saluva";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Minus, Plus, Search, Trash2 } from "lucide-react";
 import { DoodleTicket } from "@/components/doodles";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/caja")({
@@ -44,6 +64,14 @@ function Caja() {
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
   const [tocado, setTocado] = useState<string | null>(null);
 
+  // Modificadores
+  const [enModificadores, setEnModificadores] = useState<Producto | null>(null);
+  const [tamano, setTamano] = useState("Mediano");
+  const [leche, setLeche] = useState("Entera");
+  const [extraShot, setExtraShot] = useState(false);
+  const [sinAzucar, setSinAzucar] = useState(false);
+  const [paraLlevar, setParaLlevar] = useState(false);
+
   const visibles = useMemo(
     () =>
       productos.filter(
@@ -59,21 +87,49 @@ function Caja() {
   const iva = subtotal * (negocio.iva / 100);
   const total = subtotal + iva;
 
-  const agregar = (id: string) => {
-    const p = productos.find((x) => x.id === id)!;
-    setTocado(id);
-    setTimeout(() => setTocado((current) => (current === id ? null : current)), 180);
-    setItems((prev) => {
-      const found = prev.find((i) => i.productoId === id);
-      if (found) return prev.map((i) => (i.productoId === id ? { ...i, cantidad: i.cantidad + 1 } : i));
-      return [...prev, { productoId: id, nombre: p.nombre, cantidad: 1, precio: p.precio }];
-    });
+  const abrirModificadores = (p: Producto) => {
+    setTocado(p.id);
+    setTimeout(() => setTocado((current) => (current === p.id ? null : current)), 180);
+    setTamano("Mediano");
+    setLeche("Entera");
+    setExtraShot(false);
+    setSinAzucar(false);
+    setParaLlevar(canal === "Para llevar");
+    setEnModificadores(p);
   };
 
-  const cambiar = (id: string, delta: number) =>
+  const agregarConModificadores = () => {
+    const p = enModificadores;
+    if (!p) return;
+    const bebida = esBebida(p.categoria);
+    const extraTamano = bebida ? (TAMANOS.find((t) => t.valor === tamano)?.extra ?? 0) : 0;
+    const extraLeche = bebida ? (LECHES.find((l) => l.valor === leche)?.extra ?? 0) : 0;
+    const extraShotPrecio = bebida && extraShot ? EXTRA_SHOT : 0;
+    const precio = Math.max(0, p.precio + extraTamano + extraLeche + extraShotPrecio);
+
+    const opciones: string[] = [];
+    if (bebida) {
+      opciones.push(tamano, `Leche ${leche.toLowerCase()}`);
+      if (extraShot) opciones.push("Extra shot");
+      if (sinAzucar) opciones.push("Sin azúcar");
+    } else if (sinAzucar) {
+      opciones.push("Sin azúcar");
+    }
+    opciones.push(paraLlevar ? "Para llevar" : "Consumir aquí");
+
+    const firma = `${p.id}|${opciones.join(",")}`;
+    setItems((prev) => {
+      const found = prev.find((i) => i.lineaId === firma);
+      if (found) return prev.map((i) => (i.lineaId === firma ? { ...i, cantidad: i.cantidad + 1 } : i));
+      return [...prev, { lineaId: firma, productoId: p.id, nombre: p.nombre, cantidad: 1, precio, opciones }];
+    });
+    setEnModificadores(null);
+  };
+
+  const cambiar = (lineaId: string, delta: number) =>
     setItems((prev) =>
       prev
-        .map((i) => (i.productoId === id ? { ...i, cantidad: i.cantidad + delta } : i))
+        .map((i) => (i.lineaId === lineaId ? { ...i, cantidad: i.cantidad + delta } : i))
         .filter((i) => i.cantidad > 0),
     );
 
@@ -123,7 +179,7 @@ function Caja() {
             {visibles.map((p) => (
               <button
                 key={p.id}
-                onClick={() => agregar(p.id)}
+                onClick={() => abrirModificadores(p)}
                 className={`surface grain-top group cursor-pointer p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground active:scale-[0.98] ${tocado === p.id ? "scale-[0.97] !border-primary bg-primary/[0.10]" : ""}`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -168,17 +224,20 @@ function Caja() {
 
           <ul className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
             {items.map((i) => (
-              <li key={i.productoId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-cream px-3 py-2">
+              <li key={i.lineaId ?? i.productoId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-cream px-3 py-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{i.nombre}</p>
                   <p className="text-xs text-muted-foreground">{mxnExacto(i.precio)} c/u</p>
+                  {i.opciones && i.opciones.length > 0 && (
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{i.opciones.join(" · ")}</p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => cambiar(i.productoId, -1)}>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => cambiar(i.lineaId ?? i.productoId, -1)}>
                     <Minus className="h-3.5 w-3.5" />
                   </Button>
                   <span className="w-5 text-center text-sm font-semibold">{i.cantidad}</span>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => cambiar(i.productoId, 1)}>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => cambiar(i.lineaId ?? i.productoId, 1)}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -230,6 +289,95 @@ function Caja() {
           </div>
         </aside>
       </div>
+
+      <Dialog open={enModificadores !== null} onOpenChange={(o) => !o && setEnModificadores(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {enModificadores?.emoji} {enModificadores?.nombre}
+            </DialogTitle>
+            <DialogDescription>Elige los modificadores antes de agregarlo al ticket.</DialogDescription>
+          </DialogHeader>
+
+          {enModificadores && (
+            <div className="grid gap-4">
+              {esBebida(enModificadores.categoria) && (
+                <>
+                  <div className="grid gap-1.5">
+                    <Label>Tamaño</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {TAMANOS.map((t) => (
+                        <button
+                          key={t.valor}
+                          type="button"
+                          onClick={() => setTamano(t.valor)}
+                          className={`rounded-lg border px-2 py-2 text-xs font-medium ${
+                            tamano === t.valor ? "border-foreground bg-foreground text-background" : "border-border bg-card"
+                          }`}
+                        >
+                          {t.valor}
+                          {t.extra !== 0 && <span className="block text-[10px] opacity-70">{t.extra > 0 ? "+" : ""}{t.extra}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-1.5">
+                    <Label>Tipo de leche</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {LECHES.map((l) => (
+                        <button
+                          key={l.valor}
+                          type="button"
+                          onClick={() => setLeche(l.valor)}
+                          className={`rounded-lg border px-2 py-2 text-xs font-medium ${
+                            leche === l.valor ? "border-foreground bg-foreground text-background" : "border-border bg-card"
+                          }`}
+                        >
+                          {l.valor}
+                          {l.extra > 0 && <span className="block text-[10px] opacity-70">+{l.extra}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                    <Label htmlFor="extra-shot">Extra shot (+{EXTRA_SHOT})</Label>
+                    <Switch id="extra-shot" checked={extraShot} onCheckedChange={setExtraShot} />
+                  </div>
+                </>
+              )}
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                <Label htmlFor="sin-azucar">Sin azúcar</Label>
+                <Switch id="sin-azucar" checked={sinAzucar} onCheckedChange={setSinAzucar} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {([false, true] as const).map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    onClick={() => setParaLlevar(v)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-medium ${
+                      paraLlevar === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
+                    }`}
+                  >
+                    {v ? "Para llevar" : "Consumir aquí"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnModificadores(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={agregarConModificadores}>Agregar al ticket</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
