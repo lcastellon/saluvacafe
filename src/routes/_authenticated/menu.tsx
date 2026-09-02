@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import type { Producto } from "@/data/saluva";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
 import { mxnExacto, esBebida, type Categoria } from "@/data/saluva";
@@ -48,6 +49,7 @@ function Menu() {
   const [costo, setCosto] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [emoji, setEmoji] = useState("☕");
+  const [productoAEliminar, setProductoAEliminar] = useState<Producto | null>(null);
 
   const limpiar = () => {
     setNombre("");
@@ -147,6 +149,34 @@ function Menu() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={!!productoAEliminar} onOpenChange={(open) => !open && setProductoAEliminar(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>¿Eliminar producto?</DialogTitle>
+                <DialogDescription>
+                  Se quitará <strong>{productoAEliminar?.nombre}</strong> del menú. Esta acción no se puede deshacer.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setProductoAEliminar(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (productoAEliminar) {
+                      eliminarProducto(productoAEliminar.id);
+                      toast.success(`${productoAEliminar.nombre} eliminado del menú`);
+                      setProductoAEliminar(null);
+                    }
+                  }}
+                >
+                  Sí, eliminar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       }
     >
@@ -204,10 +234,7 @@ function Menu() {
                           size="icon"
                           variant="outline"
                           className="h-9 w-9 text-destructive"
-                          onClick={() => {
-                            eliminarProducto(p.id);
-                            toast.success(`${p.nombre} eliminado del menú`);
-                          }}
+                          onClick={() => setProductoAEliminar(p)}
                           aria-label={`Eliminar ${p.nombre}`}
                         >
                           <Trash2 className="h-4 w-4" />
