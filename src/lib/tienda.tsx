@@ -65,6 +65,10 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, activo: !p.activo } : p))),
       actualizarPrecio: (id, precio) =>
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, precio } : p))),
+      crearProducto: (p) =>
+        setProductos((prev) => [{ ...p, id: `p-${Date.now()}-${prev.length}` }, ...prev]),
+      eliminarProducto: (id) => setProductos((prev) => prev.filter((p) => p.id !== id)),
+
       cambiarEstado: (id, estado) =>
         setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, estado } : p))),
       crearPedido: ({ cliente, canal, metodoPago, items }) => {
