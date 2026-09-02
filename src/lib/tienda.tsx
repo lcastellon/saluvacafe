@@ -26,6 +26,8 @@ type Ctx = {
   setNegocio: (n: Negocio) => void;
   toggleProducto: (id: string) => void;
   actualizarPrecio: (id: string, precio: number) => void;
+  crearProducto: (p: Omit<Producto, "id">) => void;
+  eliminarProducto: (id: string) => void;
   cambiarEstado: (id: string, estado: EstadoPedido) => void;
   crearPedido: (args: {
     cliente: string;
@@ -34,6 +36,7 @@ type Ctx = {
     items: LineaPedido[];
   }) => Pedido;
 };
+
 
 const TiendaContext = createContext<Ctx | null>(null);
 
