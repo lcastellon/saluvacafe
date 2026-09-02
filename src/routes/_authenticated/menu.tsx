@@ -206,10 +206,7 @@ function Menu() {
                           size="icon"
                           variant="outline"
                           className="h-9 w-9 text-destructive"
-                          onClick={() => {
-                            eliminarProducto(p.id);
-                            toast.success(`${p.nombre} eliminado del menú`);
-                          }}
+                          onClick={() => setProductoAEliminar(p)}
                           aria-label={`Eliminar ${p.nombre}`}
                         >
                           <Trash2 className="h-4 w-4" />
