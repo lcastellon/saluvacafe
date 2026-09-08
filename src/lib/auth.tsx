@@ -6,6 +6,35 @@ export type Rol = "admin" | "barista";
 
 export type Perfil = { id: string; nombre: string; codigo: string; activo: boolean };
 
+type AuthCache = {
+  userId: string;
+  perfil: Perfil | null;
+  rol: Rol | null;
+};
+
+const AUTH_CACHE_KEY = "saluva-auth-v1";
+
+export function leerAuthCache(userId?: string): AuthCache | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cache = JSON.parse(
+      window.localStorage.getItem(AUTH_CACHE_KEY) ?? "null",
+    ) as AuthCache | null;
+    if (!cache || (userId && cache.userId !== userId)) return null;
+    return cache;
+  } catch {
+    return null;
+  }
+}
+
+function guardarAuthCache(cache: AuthCache) {
+  try {
+    window.localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // El inicio offline es una mejora progresiva si el navegador bloquea localStorage.
+  }
+}
+
 type Ctx = {
   session: Session | null;
   perfil: Perfil | null;
@@ -32,12 +61,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRol(null);
       return;
     }
-    const [{ data: p }, { data: r }] = await Promise.all([
-      supabase.from("perfiles").select("id, nombre, codigo, activo").eq("id", uid).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle(),
-    ]);
-    setPerfil((p as Perfil) ?? null);
-    setRol(((r?.role as Rol) ?? null) as Rol | null);
+
+    const cache = leerAuthCache(uid);
+    if (!navigator.onLine) {
+      setPerfil(cache?.perfil ?? null);
+      setRol(cache?.rol ?? null);
+      return;
+    }
+
+    try {
+      const [{ data: p, error: perfilError }, { data: r, error: rolError }] = await Promise.all([
+        supabase.from("perfiles").select("id, nombre, codigo, activo").eq("id", uid).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle(),
+      ]);
+      if (perfilError || rolError) throw perfilError ?? rolError;
+      const siguientePerfil = (p as Perfil) ?? null;
+      const siguienteRol = (r?.role as Rol) ?? null;
+      setPerfil(siguientePerfil);
+      setRol(siguienteRol);
+      guardarAuthCache({ userId: uid, perfil: siguientePerfil, rol: siguienteRol });
+    } catch (error) {
+      setPerfil(cache?.perfil ?? null);
+      setRol(cache?.rol ?? null);
+      console.warn("Se usaron los datos locales de la sesión", error);
+    }
   };
 
   useEffect(() => {

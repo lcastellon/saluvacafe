@@ -12,13 +12,16 @@ import {
   Settings,
   ShoppingBag,
   Users,
+  Wifi,
+  WifiOff,
+  CloudUpload,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { listarInsumos } from "@/lib/inventario.functions";
-
+import { useTienda } from "@/lib/tienda";
 
 const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[] = [
   { to: "/panel", label: "Dashboard", icon: LayoutDashboard },
@@ -51,6 +54,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const { perfil, esAdmin } = useAuth();
+  const { enLinea, pendientesSincronizar, sincronizarAhora } = useTienda();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const listar = useServerFn(listarInsumos);
@@ -58,10 +62,13 @@ export function AppShell({
   const { data: insumos } = useQuery({
     queryKey: ["insumos"],
     queryFn: () => listar() as Promise<Insumo[]>,
+    enabled: enLinea,
+    retry: false,
   });
 
-  const faltantes =
-    (insumos ?? []).filter((i) => i.minimo > 0 && Number(i.existencia) <= Number(i.minimo) * 0.1).length;
+  const faltantes = (insumos ?? []).filter(
+    (i) => i.minimo > 0 && Number(i.existencia) <= Number(i.minimo) * 0.1,
+  ).length;
 
   const items = nav.filter((n) => !n.soloAdmin || esAdmin);
 
@@ -118,7 +125,9 @@ export function AppShell({
           <p className="text-[11px] uppercase tracking-[0.16em] text-sidebar-foreground/60">
             {esAdmin ? "Administración" : "Turno en curso"}
           </p>
-          <p className="mt-1 truncate font-display text-lg font-semibold">{perfil?.nombre ?? "Salúva"}</p>
+          <p className="mt-1 truncate font-display text-lg font-semibold">
+            {perfil?.nombre ?? "Salúva"}
+          </p>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
             Código {perfil?.codigo ?? "······"} · Caja 1
           </p>
@@ -135,11 +144,45 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border bg-background/90 px-5 py-4 backdrop-blur sm:flex sm:flex-wrap sm:justify-between lg:px-8">
           <div className="min-w-0">
-            <h1 className="truncate font-display text-2xl font-bold tracking-tight sm:text-3xl">{titulo}</h1>
+            <h1 className="truncate font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              {titulo}
+            </h1>
             <DoodleTrazo className="mt-1 h-1.5 w-24 text-primary" />
             <p className="mt-2 truncate text-sm text-muted-foreground">{descripcion}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void sincronizarAhora()}
+              disabled={!enLinea || pendientesSincronizar === 0}
+              title={
+                !enLinea
+                  ? "Las ventas se sincronizarán cuando vuelva Internet"
+                  : pendientesSincronizar > 0
+                    ? "Sincronizar ventas pendientes"
+                    : "Todas las ventas están sincronizadas"
+              }
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium ${
+                enLinea
+                  ? pendientesSincronizar > 0
+                    ? "border-primary text-primary hover:bg-primary/10"
+                    : "border-border text-muted-foreground"
+                  : "border-destructive/40 bg-destructive/5 text-destructive"
+              } disabled:cursor-default`}
+            >
+              {!enLinea ? (
+                <WifiOff className="h-3.5 w-3.5" />
+              ) : pendientesSincronizar > 0 ? (
+                <CloudUpload className="h-3.5 w-3.5" />
+              ) : (
+                <Wifi className="h-3.5 w-3.5" />
+              )}
+              {!enLinea
+                ? `Sin conexión${pendientesSincronizar ? ` · ${pendientesSincronizar}` : ""}`
+                : pendientesSincronizar > 0
+                  ? `${pendientesSincronizar} pendiente${pendientesSincronizar === 1 ? "" : "s"}`
+                  : "En línea"}
+            </button>
             {acciones}
             <button
               onClick={salir}

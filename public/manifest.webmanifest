@@ -1,0 +1,25 @@
+{
+  "name": "Salúva · Punto de venta",
+  "short_name": "Salúva POS",
+  "description": "Punto de venta local de Salúva Café",
+  "start_url": "/caja",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffaf1",
+  "theme_color": "#e62525",
+  "lang": "es-MX",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

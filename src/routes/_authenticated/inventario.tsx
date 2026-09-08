@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
+import { useTienda } from "@/lib/tienda";
+import { cargarInventario, guardarInventario, type InsumoLocal } from "@/lib/offline-db";
 import { mxn } from "@/data/saluva";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,16 +50,7 @@ export const Route = createFileRoute("/_authenticated/inventario")({
   component: Inventario,
 });
 
-type Insumo = {
-  id: string;
-  nombre: string;
-  unidad: string;
-  existencia: number;
-  minimo: number;
-  costo_unitario: number;
-  proveedor: string;
-  activo: boolean;
-};
+type Insumo = InsumoLocal;
 
 const formularioVacio = {
   nombre: "",
@@ -70,7 +63,9 @@ const formularioVacio = {
 
 function Inventario() {
   const { esAdmin } = useAuth();
+  const { enLinea } = useTienda();
   const qc = useQueryClient();
+  const [inventarioLocal, setInventarioLocal] = useState<Insumo[]>([]);
 
   const listar = useServerFn(listarInsumos);
   const crear = useServerFn(crearInsumo);
@@ -81,10 +76,29 @@ function Inventario() {
   const { data, isLoading } = useQuery({
     queryKey: ["insumos"],
     queryFn: () => listar() as Promise<Insumo[]>,
+    enabled: enLinea,
+    retry: false,
   });
 
-  const insumos = data ?? [];
-  const valor = insumos.reduce((s: number, i: Insumo) => s + Number(i.existencia) * Number(i.costo_unitario), 0);
+  useEffect(() => {
+    void cargarInventario()
+      .then(setInventarioLocal)
+      .catch((error) => console.warn("No fue posible cargar el inventario local", error));
+  }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    setInventarioLocal(data);
+    void guardarInventario(data).catch((error) =>
+      console.warn("No fue posible guardar el inventario local", error),
+    );
+  }, [data]);
+
+  const insumos = data ?? inventarioLocal;
+  const valor = insumos.reduce(
+    (s: number, i: Insumo) => s + Number(i.existencia) * Number(i.costo_unitario),
+    0,
+  );
   const bajos = insumos.filter((i: Insumo) => Number(i.existencia) <= Number(i.minimo)).length;
 
   const [dialogoAbierto, setDialogoAbierto] = useState(false);
@@ -92,12 +106,14 @@ function Inventario() {
   const [form, setForm] = useState(formularioVacio);
 
   const abrirCrear = () => {
+    if (!enLinea) return;
     setEditando(null);
     setForm(formularioVacio);
     setDialogoAbierto(true);
   };
 
   const abrirEditar = (insumo: Insumo) => {
+    if (!enLinea) return;
     setEditando(insumo);
     setForm({
       nombre: insumo.nombre,
@@ -177,6 +193,10 @@ function Inventario() {
 
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!enLinea) {
+      toast.error("Conéctate a Internet para modificar el inventario");
+      return;
+    }
     if (editando) {
       mActualizar.mutate();
     } else {
@@ -195,7 +215,7 @@ function Inventario() {
           <Badge variant="secondary">Valor {mxn(valor)}</Badge>
           <Badge variant={bajos ? "destructive" : "default"}>{bajos} por reponer</Badge>
           {esAdmin && (
-            <Button onClick={abrirCrear} className="hidden sm:inline-flex">
+            <Button onClick={abrirCrear} disabled={!enLinea} className="hidden sm:inline-flex">
               <Package className="mr-1.5 h-4 w-4" />
               Nuevo insumo
             </Button>
@@ -205,14 +225,20 @@ function Inventario() {
     >
       {esAdmin && (
         <div className="mb-4 sm:hidden">
-          <Button onClick={abrirCrear} className="w-full">
+          <Button onClick={abrirCrear} disabled={!enLinea} className="w-full">
             <Package className="mr-1.5 h-4 w-4" />
             Nuevo insumo
           </Button>
         </div>
       )}
 
-      {isLoading ? (
+      {!enLinea && (
+        <div className="mb-4 rounded-xl border border-border bg-cream px-4 py-3 text-sm text-muted-foreground">
+          Estás viendo la última copia guardada. Conéctate a Internet para ajustar existencias.
+        </div>
+      )}
+
+      {isLoading && enLinea ? (
         <p className="text-sm text-muted-foreground">Cargando inventario…</p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -231,14 +257,20 @@ function Inventario() {
                       <p className="truncate text-xs text-muted-foreground">{i.proveedor}</p>
                     </div>
                   </div>
-                  {bajo && <Badge variant="destructive" className="shrink-0">Reponer</Badge>}
+                  {bajo && (
+                    <Badge variant="destructive" className="shrink-0">
+                      Reponer
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="mt-4 flex items-end justify-between gap-3">
                   <p className="font-display text-2xl font-bold">
                     {existencia} <span className="text-sm text-muted-foreground">{i.unidad}</span>
                   </p>
-                  <p className="text-xs text-muted-foreground">Mín. {minimo} {i.unidad}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Mín. {minimo} {i.unidad}
+                  </p>
                 </div>
 
                 <Progress value={pct} className="mt-3 h-2" />
@@ -255,6 +287,7 @@ function Inventario() {
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => abrirEditar(i)}
+                          disabled={!enLinea}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -263,7 +296,7 @@ function Inventario() {
                           variant="outline"
                           className="h-8 w-8"
                           onClick={() => mEliminar.mutate(i.id)}
-                          disabled={mEliminar.isPending}
+                          disabled={!enLinea || mEliminar.isPending}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -274,7 +307,7 @@ function Inventario() {
                       variant="outline"
                       className="h-8 w-8"
                       onClick={() => mAjustar.mutate({ id: i.id, delta: -1 })}
-                      disabled={mAjustar.isPending}
+                      disabled={!enLinea || mAjustar.isPending}
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </Button>
@@ -283,7 +316,7 @@ function Inventario() {
                       variant="outline"
                       className="h-8 w-8"
                       onClick={() => mAjustar.mutate({ id: i.id, delta: 1 })}
-                      disabled={mAjustar.isPending}
+                      disabled={!enLinea || mAjustar.isPending}
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </Button>
@@ -300,7 +333,8 @@ function Inventario() {
           <DialogHeader>
             <DialogTitle>{editando ? "Editar insumo" : "Nuevo insumo"}</DialogTitle>
             <DialogDescription>
-              Completa los datos del insumo. El costo unitario sirve para calcular el valor en almacén.
+              Completa los datos del insumo. El costo unitario sirve para calcular el valor en
+              almacén.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={guardar} className="space-y-4">
@@ -372,19 +406,15 @@ function Inventario() {
               </div>
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogoAbierto(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setDialogoAbierto(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={mCrear.isPending || mActualizar.isPending}>
                 {mCrear.isPending || mActualizar.isPending
                   ? "Guardando…"
                   : editando
-                  ? "Guardar cambios"
-                  : "Crear insumo"}
+                    ? "Guardar cambios"
+                    : "Crear insumo"}
               </Button>
             </DialogFooter>
           </form>

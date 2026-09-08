@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
@@ -36,10 +36,14 @@ export const Route = createFileRoute("/_authenticated/caja")({
       { title: "Punto de venta · Salúva" },
       {
         name: "description",
-        content: "Cobra desde el mostrador de Salúva: arma el ticket, elige método de pago y envía el pedido a barra.",
+        content:
+          "Cobra desde el mostrador de Salúva: arma el ticket, elige método de pago y envía el pedido a barra.",
       },
       { property: "og:title", content: "Punto de venta · Salúva" },
-      { property: "og:description", content: "Caja rápida para cobrar cafés, panadería y desayunos en Salúva." },
+      {
+        property: "og:description",
+        content: "Caja rápida para cobrar cafés, panadería y desayunos en Salúva.",
+      },
     ],
   }),
   component: Caja,
@@ -55,7 +59,7 @@ const categorias: (Categoria | "Todo")[] = [
 ];
 
 function Caja() {
-  const { productos, crearPedido, negocio } = useTienda();
+  const { productos, crearPedido, negocio, enLinea } = useTienda();
   const [cat, setCat] = useState<(typeof categorias)[number]>("Todo");
   const [busqueda, setBusqueda] = useState("");
   const [items, setItems] = useState<LineaPedido[]>([]);
@@ -63,6 +67,10 @@ function Caja() {
   const [canal, setCanal] = useState<Pedido["canal"]>("Mostrador");
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
   const [tocado, setTocado] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enLinea) setPago("Efectivo");
+  }, [enLinea]);
 
   // Modificadores
   const [enModificadores, setEnModificadores] = useState<Producto | null>(null);
@@ -120,8 +128,12 @@ function Caja() {
     const firma = `${p.id}|${opciones.join(",")}`;
     setItems((prev) => {
       const found = prev.find((i) => i.lineaId === firma);
-      if (found) return prev.map((i) => (i.lineaId === firma ? { ...i, cantidad: i.cantidad + 1 } : i));
-      return [...prev, { lineaId: firma, productoId: p.id, nombre: p.nombre, cantidad: 1, precio, opciones }];
+      if (found)
+        return prev.map((i) => (i.lineaId === firma ? { ...i, cantidad: i.cantidad + 1 } : i));
+      return [
+        ...prev,
+        { lineaId: firma, productoId: p.id, nombre: p.nombre, cantidad: 1, precio, opciones },
+      ];
     });
     setEnModificadores(null);
   };
@@ -136,9 +148,15 @@ function Caja() {
   const cobrar = () => {
     if (items.length === 0) return;
     const pedido = crearPedido({ cliente, canal, metodoPago: pago, items });
-    toast.success(`Pedido ${pedido.folio} enviado a barra`, {
-      description: `${mxnExacto(total)} · ${pago}`,
-    });
+    if (enLinea) {
+      toast.success(`Pedido ${pedido.folio} enviado a barra`, {
+        description: `${mxnExacto(pedido.total)} · ${pedido.metodoPago}`,
+      });
+    } else {
+      toast.success(`Pedido ${pedido.folio} guardado en este dispositivo`, {
+        description: `${mxnExacto(pedido.total)} · Efectivo · Se sincronizará al volver Internet`,
+      });
+    }
     setItems([]);
     setCliente("");
   };
@@ -206,14 +224,20 @@ function Caja() {
           </div>
 
           <div className="mt-4 space-y-3">
-            <Input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nombre o mesa" />
+            <Input
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              placeholder="Nombre o mesa"
+            />
             <div className="grid grid-cols-3 gap-2">
               {(["Mostrador", "Para llevar", "App"] as const).map((c) => (
                 <button
                   key={c}
                   onClick={() => setCanal(c)}
                   className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                    canal === c ? "border-foreground bg-foreground text-background" : "border-border bg-card"
+                    canal === c
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-card"
                   }`}
                 >
                   {c}
@@ -224,20 +248,35 @@ function Caja() {
 
           <ul className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
             {items.map((i) => (
-              <li key={i.lineaId ?? i.productoId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-cream px-3 py-2">
+              <li
+                key={i.lineaId ?? i.productoId}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-cream px-3 py-2"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{i.nombre}</p>
                   <p className="text-xs text-muted-foreground">{mxnExacto(i.precio)} c/u</p>
                   {i.opciones && i.opciones.length > 0 && (
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{i.opciones.join(" · ")}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {i.opciones.join(" · ")}
+                    </p>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => cambiar(i.lineaId ?? i.productoId, -1)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => cambiar(i.lineaId ?? i.productoId, -1)}
+                  >
                     <Minus className="h-3.5 w-3.5" />
                   </Button>
                   <span className="w-5 text-center text-sm font-semibold">{i.cantidad}</span>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => cambiar(i.lineaId ?? i.productoId, 1)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => cambiar(i.lineaId ?? i.productoId, 1)}
+                  >
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -270,20 +309,35 @@ function Caja() {
               <button
                 key={m}
                 onClick={() => setPago(m)}
+                disabled={!enLinea && m !== "Efectivo"}
+                title={!enLinea && m !== "Efectivo" ? "Este método requiere conexión" : undefined}
                 className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                  pago === m ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
-                }`}
+                  pago === m
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card"
+                } disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 {m}
               </button>
             ))}
           </div>
 
+          {!enLinea && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Sin conexión: puedes cobrar en efectivo. La venta quedará guardada aquí.
+            </p>
+          )}
+
           <div className="mt-4 flex gap-2">
             <Button className="flex-1" size="lg" disabled={items.length === 0} onClick={cobrar}>
               Cobrar
             </Button>
-            <Button variant="outline" size="lg" disabled={items.length === 0} onClick={() => setItems([])}>
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={items.length === 0}
+              onClick={() => setItems([])}
+            >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -296,7 +350,9 @@ function Caja() {
             <DialogTitle>
               {enModificadores?.emoji} {enModificadores?.nombre}
             </DialogTitle>
-            <DialogDescription>Elige los modificadores antes de agregarlo al ticket.</DialogDescription>
+            <DialogDescription>
+              Elige los modificadores antes de agregarlo al ticket.
+            </DialogDescription>
           </DialogHeader>
 
           {enModificadores && (
@@ -312,11 +368,18 @@ function Caja() {
                           type="button"
                           onClick={() => setTamano(t.valor)}
                           className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                            tamano === t.valor ? "border-foreground bg-foreground text-background" : "border-border bg-card"
+                            tamano === t.valor
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-border bg-card"
                           }`}
                         >
                           {t.valor}
-                          {t.extra !== 0 && <span className="block text-[10px] opacity-70">{t.extra > 0 ? "+" : ""}{t.extra}</span>}
+                          {t.extra !== 0 && (
+                            <span className="block text-[10px] opacity-70">
+                              {t.extra > 0 ? "+" : ""}
+                              {t.extra}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -331,11 +394,15 @@ function Caja() {
                           type="button"
                           onClick={() => setLeche(l.valor)}
                           className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                            leche === l.valor ? "border-foreground bg-foreground text-background" : "border-border bg-card"
+                            leche === l.valor
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-border bg-card"
                           }`}
                         >
                           {l.valor}
-                          {l.extra > 0 && <span className="block text-[10px] opacity-70">+{l.extra}</span>}
+                          {l.extra > 0 && (
+                            <span className="block text-[10px] opacity-70">+{l.extra}</span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -360,7 +427,9 @@ function Caja() {
                     type="button"
                     onClick={() => setParaLlevar(v)}
                     className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                      paraLlevar === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
+                      paraLlevar === v
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card"
                     }`}
                   >
                     {v ? "Para llevar" : "Consumir aquí"}

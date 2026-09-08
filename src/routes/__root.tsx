@@ -83,13 +83,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Salúva · Punto de venta para cafetería" },
       {
         name: "description",
-        content: "Sistema de punto de venta, pedidos, inventario y reportes para la cafetería Salúva.",
+        content:
+          "Sistema de punto de venta, pedidos, inventario y reportes para la cafetería Salúva.",
       },
       { name: "author", content: "Salúva" },
+      { name: "theme-color", content: "#e62525" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Salúva POS" },
       { property: "og:title", content: "Salúva · Punto de venta para cafetería" },
       {
         property: "og:description",
-        content: "Vende desde el mostrador, controla pedidos e inventario y revisa las ventas del día.",
+        content:
+          "Vende desde el mostrador, controla pedidos e inventario y revisa las ventas del día.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -103,6 +108,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "apple-touch-icon", href: "/icon-192.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
@@ -113,7 +120,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="es-MX">
       <head>
         <HeadContent />
       </head>
@@ -127,6 +134,13 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !import.meta.env.PROD) return;
+    void navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.warn("No fue posible activar el modo instalable", error);
+    });
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
