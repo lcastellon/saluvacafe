@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Minus, Plus, Search, Trash2 } from "lucide-react";
+import { Minus, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { DoodleTicket } from "@/components/doodles";
 import {
   Dialog,
@@ -58,6 +58,112 @@ const categorias: (Categoria | "Todo")[] = [
   "Desayunos",
 ];
 
+function DetallePreTicket({
+  referencia,
+  fecha,
+  cliente,
+  canal,
+  items,
+  subtotal,
+  iva,
+  total,
+  negocio,
+}: {
+  referencia: string;
+  fecha: string;
+  cliente: string;
+  canal: Pedido["canal"];
+  items: LineaPedido[];
+  subtotal: number;
+  iva: number;
+  total: number;
+  negocio: {
+    nombre: string;
+    sucursal: string;
+    direccion: string;
+    telefono: string;
+    iva: number;
+  };
+}) {
+  const fechaLocal = new Date(fecha);
+
+  return (
+    <div className="font-mono text-[12px] leading-snug text-black">
+      <div className="text-center">
+        <p className="text-lg font-bold uppercase">{negocio.nombre}</p>
+        <p>{negocio.sucursal}</p>
+        <p>{negocio.direccion}</p>
+        <p>{negocio.telefono}</p>
+        <p className="mt-3 border-y border-dashed border-black py-2 text-sm font-bold uppercase tracking-[0.16em]">
+          Pre-ticket
+        </p>
+      </div>
+
+      <div className="my-3 space-y-1">
+        <div className="flex justify-between gap-3">
+          <span>Referencia</span>
+          <span>{referencia}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Fecha</span>
+          <span>{fechaLocal.toLocaleDateString("es-MX")}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Hora</span>
+          <span>
+            {fechaLocal.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Cliente / mesa</span>
+          <span className="text-right">{cliente.trim() || "Mostrador"}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Servicio</span>
+          <span>{canal}</span>
+        </div>
+      </div>
+
+      <div className="border-y border-dashed border-black py-2">
+        {items.map((item) => (
+          <div key={item.lineaId ?? item.productoId} className="py-1.5">
+            <div className="flex items-start justify-between gap-3">
+              <span>
+                {item.cantidad} × {item.nombre}
+              </span>
+              <span className="shrink-0">{mxnExacto(item.precio * item.cantidad)}</span>
+            </div>
+            {item.opciones && item.opciones.length > 0 && (
+              <p className="pr-8 text-[10px] text-black/65">{item.opciones.join(" · ")}</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 space-y-1">
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span>{mxnExacto(subtotal)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>IVA ({negocio.iva}%)</span>
+          <span>{mxnExacto(iva)}</span>
+        </div>
+        <div className="mt-2 flex justify-between border-t border-black pt-2 text-base font-bold">
+          <span>Total</span>
+          <span>{mxnExacto(total)}</span>
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-dashed border-black pt-3 text-center">
+        <p className="font-bold">Documento informativo</p>
+        <p>No es comprobante fiscal ni confirma el pago.</p>
+        <p className="mt-3">Gracias por visitar Salúva.</p>
+      </div>
+    </div>
+  );
+}
+
 function Caja() {
   const { productos, crearPedido, negocio, enLinea } = useTienda();
   const [cat, setCat] = useState<(typeof categorias)[number]>("Todo");
@@ -67,6 +173,7 @@ function Caja() {
   const [canal, setCanal] = useState<Pedido["canal"]>("Mostrador");
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
   const [tocado, setTocado] = useState<string | null>(null);
+  const [preTicket, setPreTicket] = useState<{ referencia: string; fecha: string } | null>(null);
 
   useEffect(() => {
     if (!enLinea) setPago("Efectivo");
@@ -159,6 +266,15 @@ function Caja() {
     }
     setItems([]);
     setCliente("");
+  };
+
+  const abrirPreTicket = () => {
+    if (items.length === 0) return;
+    const ahora = new Date();
+    setPreTicket({
+      referencia: `PRE-${ahora.getTime().toString().slice(-6)}`,
+      fecha: ahora.toISOString(),
+    });
   };
 
   return (
@@ -288,6 +404,21 @@ function Caja() {
               </li>
             )}
           </ul>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full border-dashed"
+            disabled={items.length === 0}
+            onClick={abrirPreTicket}
+          >
+            <Printer className="mr-1.5 h-4 w-4" />
+            Generar pre-ticket
+          </Button>
+          <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+            No cobra ni registra la venta.
+          </p>
 
           <div className="mt-4 space-y-1.5 border-t border-border pt-4 text-sm">
             <div className="flex justify-between text-muted-foreground">
@@ -447,6 +578,59 @@ function Caja() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={preTicket !== null} onOpenChange={(abierto) => !abierto && setPreTicket(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vista previa del pre-ticket</DialogTitle>
+            <DialogDescription>
+              Revisa el consumo antes de imprimirlo. El pedido todavía no se cobrará.
+            </DialogDescription>
+          </DialogHeader>
+
+          {preTicket && (
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
+              <DetallePreTicket
+                referencia={preTicket.referencia}
+                fecha={preTicket.fecha}
+                cliente={cliente}
+                canal={canal}
+                items={items}
+                subtotal={subtotal}
+                iva={iva}
+                total={total}
+                negocio={negocio}
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreTicket(null)}>
+              Cerrar
+            </Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="mr-1.5 h-4 w-4" />
+              Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {preTicket && (
+        <div className="preticket-print">
+          <DetallePreTicket
+            referencia={preTicket.referencia}
+            fecha={preTicket.fecha}
+            cliente={cliente}
+            canal={canal}
+            items={items}
+            subtotal={subtotal}
+            iva={iva}
+            total={total}
+            negocio={negocio}
+          />
+        </div>
+      )}
     </AppShell>
   );
 }
