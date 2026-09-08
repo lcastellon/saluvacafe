@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
+import { useAuth } from "@/lib/auth";
 import {
   mxnExacto,
   esBebida,
@@ -62,6 +63,7 @@ function DetallePreTicket({
   referencia,
   fecha,
   cliente,
+  atendio,
   canal,
   items,
   subtotal,
@@ -72,6 +74,7 @@ function DetallePreTicket({
   referencia: string;
   fecha: string;
   cliente: string;
+  atendio: string;
   canal: Pedido["canal"];
   items: LineaPedido[];
   subtotal: number;
@@ -117,6 +120,10 @@ function DetallePreTicket({
         <div className="flex justify-between gap-3">
           <span>Cliente / mesa</span>
           <span className="text-right">{cliente.trim() || "Mostrador"}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Atendió</span>
+          <span className="text-right">{atendio}</span>
         </div>
         <div className="flex justify-between gap-3">
           <span>Servicio</span>
@@ -165,6 +172,7 @@ function DetallePreTicket({
 }
 
 function Caja() {
+  const { perfil } = useAuth();
   const { productos, crearPedido, negocio, enLinea } = useTienda();
   const [cat, setCat] = useState<(typeof categorias)[number]>("Todo");
   const [busqueda, setBusqueda] = useState("");
@@ -594,6 +602,7 @@ function Caja() {
                 referencia={preTicket.referencia}
                 fecha={preTicket.fecha}
                 cliente={cliente}
+                atendio={perfil?.nombre ?? "Personal Salúva"}
                 canal={canal}
                 items={items}
                 subtotal={subtotal}
@@ -622,6 +631,7 @@ function Caja() {
             referencia={preTicket.referencia}
             fecha={preTicket.fecha}
             cliente={cliente}
+            atendio={perfil?.nombre ?? "Personal Salúva"}
             canal={canal}
             items={items}
             subtotal={subtotal}
