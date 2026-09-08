@@ -360,12 +360,6 @@ function Caja() {
     setCliente("");
   };
 
-  useEffect(() => {
-    if (!ticketCobrado) return;
-    const temporizador = window.setTimeout(() => window.print(), 150);
-    return () => window.clearTimeout(temporizador);
-  }, [ticketCobrado]);
-
   const abrirPreTicket = () => {
     if (items.length === 0) return;
     const ahora = new Date();
@@ -682,8 +676,8 @@ function Caja() {
           <DialogHeader>
             <DialogTitle>Confirmar cobro</DialogTitle>
             <DialogDescription>
-              Revisa el pago. Al confirmar se registrará la venta y se abrirá la impresión del
-              ticket.
+              Revisa el pago. Al confirmar se registrará la venta y podrás revisar el ticket antes
+              de imprimirlo.
             </DialogDescription>
           </DialogHeader>
 
@@ -770,10 +764,7 @@ function Caja() {
             <Button variant="outline" onClick={() => setCobroAbierto(false)}>
               Cancelar
             </Button>
-            <Button onClick={confirmarCobro}>
-              <Printer className="mr-1.5 h-4 w-4" />
-              Confirmar e imprimir
-            </Button>
+            <Button onClick={confirmarCobro}>Confirmar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -841,7 +832,7 @@ function Caja() {
           <DialogHeader>
             <DialogTitle>Venta cobrada</DialogTitle>
             <DialogDescription>
-              El ticket se envió a impresión. Puedes revisarlo o imprimirlo de nuevo.
+              Revisa los datos del ticket antes de enviarlo a impresión.
             </DialogDescription>
           </DialogHeader>
 
@@ -873,7 +864,7 @@ function Caja() {
             </Button>
             <Button onClick={() => window.print()}>
               <Printer className="mr-1.5 h-4 w-4" />
-              Reimprimir
+              Imprimir
             </Button>
           </DialogFooter>
         </DialogContent>
