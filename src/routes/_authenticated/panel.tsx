@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
 import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
@@ -9,7 +10,18 @@ import { esHoy, productosMasVendidos, ventasPorHora, ventasUltimosSieteDias } fr
 import { listarInsumos } from "@/lib/inventario.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Coffee, CupSoda, Receipt, TrendingUp, TriangleAlert } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  Coffee,
+  CupSoda,
+  Plus,
+  Receipt,
+  StickyNote,
+  Trash2,
+  TrendingUp,
+  TriangleAlert,
+} from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -71,6 +83,152 @@ type Insumo = {
   proveedor: string;
 };
 
+type NotaTurno = {
+  id: string;
+  texto: string;
+  color: number;
+  hecha: boolean;
+};
+
+const NOTAS_KEY = "saluva-notas-turno-v1";
+const coloresNota = ["bg-[#fff1a8]", "bg-[#ffd8cf]", "bg-[#dcefe2]", "bg-[#e4e7ef]"];
+const inclinacionesNota = ["-rotate-[0.8deg]", "rotate-[0.6deg]", "-rotate-[0.35deg]", "rotate-1"];
+
+function cargarNotas(): NotaTurno[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const guardadas = JSON.parse(window.localStorage.getItem(NOTAS_KEY) ?? "[]");
+    return Array.isArray(guardadas) ? guardadas : [];
+  } catch {
+    return [];
+  }
+}
+
+function TableroNotas() {
+  const [notas, setNotas] = useState<NotaTurno[]>(cargarNotas);
+  const [texto, setTexto] = useState("");
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(NOTAS_KEY, JSON.stringify(notas));
+    } catch {
+      // Las notas siguen disponibles durante la sesión si el navegador bloquea localStorage.
+    }
+  }, [notas]);
+
+  const agregarNota = (event: FormEvent) => {
+    event.preventDefault();
+    const contenido = texto.trim();
+    if (!contenido) return;
+    setNotas((actuales) => [
+      {
+        id: globalThis.crypto?.randomUUID?.() ?? `nota-${Date.now()}`,
+        texto: contenido,
+        color: actuales.length % coloresNota.length,
+        hecha: false,
+      },
+      ...actuales,
+    ]);
+    setTexto("");
+  };
+
+  const actualizarNota = (id: string, cambio: Partial<NotaTurno>) =>
+    setNotas((actuales) =>
+      actuales.map((nota) => (nota.id === id ? { ...nota, ...cambio } : nota)),
+    );
+
+  const eliminarNota = (id: string) =>
+    setNotas((actuales) => actuales.filter((nota) => nota.id !== id));
+
+  return (
+    <section className="surface mt-6 overflow-hidden p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <StickyNote className="h-5 w-5 text-primary" /> Notas del turno
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Recordatorios guardados en este dispositivo, incluso sin conexión.
+          </p>
+        </div>
+        <Badge variant="secondary">
+          {notas.length} nota{notas.length === 1 ? "" : "s"}
+        </Badge>
+      </div>
+
+      <form onSubmit={agregarNota} className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <input
+          value={texto}
+          onChange={(event) => setTexto(event.target.value)}
+          maxLength={180}
+          placeholder="Ej. Pedir leche de avena antes de las 4…"
+          aria-label="Nueva nota del turno"
+          className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-shadow placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <Button type="submit" disabled={!texto.trim()}>
+          <Plus className="mr-1.5 h-4 w-4" /> Agregar post-it
+        </Button>
+      </form>
+
+      {notas.length > 0 ? (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {notas.map((nota, indice) => (
+            <article
+              key={nota.id}
+              className={`postit-enter group relative min-h-40 rounded-sm p-4 pt-6 text-[#272420] shadow-[0_12px_24px_-16px_rgba(17,17,17,0.65)] transition duration-200 hover:z-10 hover:-translate-y-1 hover:rotate-0 hover:shadow-[0_18px_30px_-16px_rgba(17,17,17,0.75)] ${
+                coloresNota[nota.color % coloresNota.length]
+              } ${inclinacionesNota[indice % inclinacionesNota.length]} ${nota.hecha ? "opacity-65" : ""}`}
+              style={{ animationDelay: `${Math.min(indice, 5) * 55}ms` }}
+            >
+              <span className="absolute left-1/2 top-0 h-4 w-14 -translate-x-1/2 -translate-y-1/3 rotate-[-2deg] bg-white/55 shadow-sm" />
+              <textarea
+                value={nota.texto}
+                onChange={(event) => actualizarNota(nota.id, { texto: event.target.value })}
+                maxLength={180}
+                aria-label="Contenido de la nota"
+                className={`min-h-24 w-full resize-none bg-transparent text-sm leading-relaxed outline-none ${
+                  nota.hecha ? "line-through" : ""
+                }`}
+              />
+              <div className="mt-1 flex items-center justify-between border-t border-black/10 pt-2">
+                <button
+                  type="button"
+                  onClick={() => actualizarNota(nota.id, { hecha: !nota.hecha })}
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/55 hover:text-black"
+                >
+                  <span
+                    className={`grid h-5 w-5 place-items-center rounded-full border border-black/30 ${
+                      nota.hecha ? "bg-black text-white" : "bg-white/30"
+                    }`}
+                  >
+                    {nota.hecha && <Check className="h-3 w-3" />}
+                  </span>
+                  {nota.hecha ? "Hecha" : "Pendiente"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => eliminarNota(nota.id)}
+                  aria-label="Eliminar nota"
+                  className="grid h-7 w-7 place-items-center rounded-full text-black/45 opacity-70 transition hover:bg-black/10 hover:text-black group-hover:opacity-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 rounded-xl border border-dashed border-border px-4 py-8 text-center">
+          <StickyNote className="mx-auto h-7 w-7 text-primary/55" />
+          <p className="mt-2 text-sm text-muted-foreground">
+            No hay notas todavía. Agrega el primer recordatorio del turno.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Dashboard() {
   const { pedidos, enLinea } = useTienda();
   const listar = useServerFn(listarInsumos);
@@ -123,6 +281,8 @@ function Dashboard() {
           icon={Coffee}
         />
       </div>
+
+      <TableroNotas />
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="surface p-5 lg:col-span-2">

@@ -83,6 +83,15 @@ function ventasDesdeNube(data: Json): Pedido[] {
   }));
 }
 
+type RespuestaRpc = { data: Json; error: unknown };
+
+function ejecutarRpc(nombre: string, argumentos?: Record<string, Json>): Promise<RespuestaRpc> {
+  const cliente = supabase as unknown as {
+    rpc: (funcion: string, args?: Record<string, Json>) => Promise<RespuestaRpc>;
+  };
+  return cliente.rpc(nombre, argumentos);
+}
+
 export function TiendaProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const [productos, setProductos] = useState<Producto[]>(productosSeed);
@@ -140,7 +149,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
     try {
       const pendientes = await listarPendientes();
       for (const pedido of pendientes) {
-        const { error } = await supabase.rpc("sincronizar_venta_pos", {
+        const { error } = await ejecutarRpc("sincronizar_venta_pos", {
           p_venta: pedido as unknown as Json,
         });
         if (error) throw error;
@@ -154,7 +163,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       const pendientesRestantes = await listarPendientes();
       setPendientesSincronizar(pendientesRestantes.length);
 
-      const { data, error } = await supabase.rpc("listar_ventas_pos");
+      const { data, error } = await ejecutarRpc("listar_ventas_pos");
       if (error) throw error;
       const remotas = ventasDesdeNube(data);
       const idsPendientes = new Set(pendientesRestantes.map((pedido) => pedido.id));
