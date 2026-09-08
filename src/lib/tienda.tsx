@@ -48,6 +48,9 @@ type Ctx = {
     canal: Pedido["canal"];
     metodoPago: Pedido["metodoPago"];
     items: LineaPedido[];
+    propina?: number;
+    montoRecibido?: number;
+    cambio?: number;
   }) => Pedido;
 };
 
@@ -222,7 +225,15 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
             return actualizado;
           }),
         ),
-      crearPedido: ({ cliente, canal, metodoPago, items }) => {
+      crearPedido: ({
+        cliente,
+        canal,
+        metodoPago,
+        items,
+        propina = 0,
+        montoRecibido,
+        cambio = 0,
+      }) => {
         const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
         const iva = subtotal * (negocio.iva / 100);
         const creadoEn = new Date().toISOString();
@@ -241,6 +252,9 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
           subtotal,
           iva,
           total: subtotal + iva,
+          propina,
+          montoRecibido: montoRecibido ?? subtotal + iva + propina,
+          cambio,
           creadoEn,
           sincronizacion: "pendiente",
         };

@@ -343,6 +343,9 @@ export type Pedido = {
   iva: number;
   total: number;
   metodoPago: "Efectivo" | "Tarjeta" | "Transferencia";
+  propina?: number;
+  montoRecibido?: number;
+  cambio?: number;
   creadoEn: string;
   sincronizacion: "pendiente" | "sincronizado";
 };

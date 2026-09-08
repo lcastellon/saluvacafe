@@ -59,7 +59,7 @@ const categorias: (Categoria | "Todo")[] = [
   "Desayunos",
 ];
 
-function DetallePreTicket({
+function DetalleTicket({
   referencia,
   fecha,
   cliente,
@@ -70,6 +70,11 @@ function DetallePreTicket({
   iva,
   total,
   negocio,
+  esVenta = false,
+  metodoPago,
+  propina = 0,
+  montoRecibido = 0,
+  cambio = 0,
 }: {
   referencia: string;
   fecha: string;
@@ -87,8 +92,14 @@ function DetallePreTicket({
     telefono: string;
     iva: number;
   };
+  esVenta?: boolean;
+  metodoPago?: Pedido["metodoPago"];
+  propina?: number;
+  montoRecibido?: number;
+  cambio?: number;
 }) {
   const fechaLocal = new Date(fecha);
+  const montoCobrado = total + propina;
 
   return (
     <div className="font-mono text-[12px] leading-snug text-black">
@@ -98,7 +109,7 @@ function DetallePreTicket({
         <p>{negocio.direccion}</p>
         <p>{negocio.telefono}</p>
         <p className="mt-3 border-y border-dashed border-black py-2 text-sm font-bold uppercase tracking-[0.16em]">
-          Pre-ticket
+          {esVenta ? "Ticket de venta" : "Pre-ticket"}
         </p>
       </div>
 
@@ -157,14 +168,40 @@ function DetallePreTicket({
           <span>{mxnExacto(iva)}</span>
         </div>
         <div className="mt-2 flex justify-between border-t border-black pt-2 text-base font-bold">
-          <span>Total</span>
+          <span>Total consumo</span>
           <span>{mxnExacto(total)}</span>
         </div>
+        {esVenta && metodoPago && (
+          <div className="mt-3 space-y-1 border-t border-dashed border-black pt-3">
+            <div className="flex justify-between">
+              <span>Método de pago</span>
+              <span>{metodoPago}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Propina</span>
+              <span>{mxnExacto(propina)}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold">
+              <span>Monto cobrado</span>
+              <span>{mxnExacto(montoCobrado)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Recibido</span>
+              <span>{mxnExacto(montoRecibido)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Cambio</span>
+              <span>{mxnExacto(cambio)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-5 border-t border-dashed border-black pt-3 text-center">
-        <p className="font-bold">Documento informativo</p>
-        <p>No es comprobante fiscal ni confirma el pago.</p>
+        <p className="font-bold">{esVenta ? "Pago registrado" : "Documento informativo"}</p>
+        <p>
+          {esVenta ? "No es comprobante fiscal." : "No es comprobante fiscal ni confirma el pago."}
+        </p>
         <p className="mt-3">Gracias por visitar Salúva.</p>
       </div>
     </div>
@@ -182,6 +219,10 @@ function Caja() {
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
   const [tocado, setTocado] = useState<string | null>(null);
   const [preTicket, setPreTicket] = useState<{ referencia: string; fecha: string } | null>(null);
+  const [cobroAbierto, setCobroAbierto] = useState(false);
+  const [propinaTexto, setPropinaTexto] = useState("0");
+  const [recibidoTexto, setRecibidoTexto] = useState("");
+  const [ticketCobrado, setTicketCobrado] = useState<Pedido | null>(null);
 
   useEffect(() => {
     if (!enLinea) setPago("Efectivo");
@@ -209,6 +250,20 @@ function Caja() {
   const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
   const iva = subtotal * (negocio.iva / 100);
   const total = subtotal + iva;
+  const propinaIngresada = Number(propinaTexto);
+  const propina =
+    Number.isFinite(propinaIngresada) && propinaIngresada >= 0
+      ? Math.round(propinaIngresada * 100) / 100
+      : 0;
+  const montoCobrar = Math.round((total + propina) * 100) / 100;
+  const recibidoIngresado = Number(recibidoTexto);
+  const montoRecibido =
+    pago === "Efectivo"
+      ? Number.isFinite(recibidoIngresado) && recibidoIngresado >= 0
+        ? Math.round(recibidoIngresado * 100) / 100
+        : 0
+      : montoCobrar;
+  const cambio = Math.max(0, Math.round((montoRecibido - montoCobrar) * 100) / 100);
 
   const abrirModificadores = (p: Producto) => {
     setTocado(p.id);
@@ -260,21 +315,56 @@ function Caja() {
         .filter((i) => i.cantidad > 0),
     );
 
-  const cobrar = () => {
+  const abrirCobro = () => {
     if (items.length === 0) return;
-    const pedido = crearPedido({ cliente, canal, metodoPago: pago, items });
+    setPropinaTexto("0");
+    setRecibidoTexto("");
+    setCobroAbierto(true);
+  };
+
+  const confirmarCobro = () => {
+    if (items.length === 0) return;
+    if (!Number.isFinite(propinaIngresada) || propinaIngresada < 0) {
+      toast.error("Ingresa una propina válida");
+      return;
+    }
+    if (pago === "Efectivo" && montoRecibido < montoCobrar) {
+      toast.error("El efectivo recibido no cubre el monto a cobrar", {
+        description: `Faltan ${mxnExacto(montoCobrar - montoRecibido)}`,
+      });
+      return;
+    }
+
+    const pedido = crearPedido({
+      cliente,
+      canal,
+      metodoPago: pago,
+      items,
+      propina,
+      montoRecibido,
+      cambio,
+    });
+    setPreTicket(null);
+    setTicketCobrado(pedido);
+    setCobroAbierto(false);
     if (enLinea) {
       toast.success(`Pedido ${pedido.folio} enviado a barra`, {
-        description: `${mxnExacto(pedido.total)} · ${pedido.metodoPago}`,
+        description: `${mxnExacto(pedido.total + propina)} · ${pedido.metodoPago}`,
       });
     } else {
       toast.success(`Pedido ${pedido.folio} guardado en este dispositivo`, {
-        description: `${mxnExacto(pedido.total)} · Efectivo · Se sincronizará al volver Internet`,
+        description: `${mxnExacto(pedido.total + propina)} · Efectivo · Se sincronizará al volver Internet`,
       });
     }
     setItems([]);
     setCliente("");
   };
+
+  useEffect(() => {
+    if (!ticketCobrado) return;
+    const temporizador = window.setTimeout(() => window.print(), 150);
+    return () => window.clearTimeout(temporizador);
+  }, [ticketCobrado]);
 
   const abrirPreTicket = () => {
     if (items.length === 0) return;
@@ -468,7 +558,7 @@ function Caja() {
           )}
 
           <div className="mt-4 flex gap-2">
-            <Button className="flex-1" size="lg" disabled={items.length === 0} onClick={cobrar}>
+            <Button className="flex-1" size="lg" disabled={items.length === 0} onClick={abrirCobro}>
               Cobrar
             </Button>
             <Button
@@ -587,6 +677,107 @@ function Caja() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={cobroAbierto} onOpenChange={setCobroAbierto}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar cobro</DialogTitle>
+            <DialogDescription>
+              Revisa el pago. Al confirmar se registrará la venta y se abrirá la impresión del
+              ticket.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="rounded-xl bg-cream p-4">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Consumo</span>
+                <span>{mxnExacto(total)}</span>
+              </div>
+              <div className="mt-2 flex justify-between text-sm">
+                <span>Método de pago</span>
+                <span className="font-semibold">{pago}</span>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="propina">Propina</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" onClick={() => setPropinaTexto("0")}>
+                  Sin propina
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setPropinaTexto((Math.round(total * negocio.propinaSugerida) / 100).toFixed(2))
+                  }
+                >
+                  Sugerida {negocio.propinaSugerida}%
+                </Button>
+              </div>
+              <Input
+                id="propina"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={propinaTexto}
+                onChange={(evento) => setPropinaTexto(evento.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            {pago === "Efectivo" && (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="monto-recibido">Efectivo recibido</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRecibidoTexto(montoCobrar.toFixed(2))}
+                  >
+                    Monto exacto
+                  </Button>
+                </div>
+                <Input
+                  id="monto-recibido"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={recibidoTexto}
+                  onChange={(evento) => setRecibidoTexto(evento.target.value)}
+                  placeholder={montoCobrar.toFixed(2)}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="space-y-2 border-t border-border pt-4">
+              <div className="flex justify-between font-display text-xl font-bold">
+                <span>Monto a cobrar</span>
+                <span>{mxnExacto(montoCobrar)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Cambio</span>
+                <span className="font-semibold">{mxnExacto(cambio)}</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCobroAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarCobro}>
+              <Printer className="mr-1.5 h-4 w-4" />
+              Confirmar e imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={preTicket !== null} onOpenChange={(abierto) => !abierto && setPreTicket(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -598,7 +789,7 @@ function Caja() {
 
           {preTicket && (
             <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
-              <DetallePreTicket
+              <DetalleTicket
                 referencia={preTicket.referencia}
                 fecha={preTicket.fecha}
                 cliente={cliente}
@@ -627,7 +818,7 @@ function Caja() {
 
       {preTicket && (
         <div className="preticket-print">
-          <DetallePreTicket
+          <DetalleTicket
             referencia={preTicket.referencia}
             fecha={preTicket.fecha}
             cliente={cliente}
@@ -638,6 +829,74 @@ function Caja() {
             iva={iva}
             total={total}
             negocio={negocio}
+          />
+        </div>
+      )}
+
+      <Dialog
+        open={ticketCobrado !== null}
+        onOpenChange={(abierto) => !abierto && setTicketCobrado(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Venta cobrada</DialogTitle>
+            <DialogDescription>
+              El ticket se envió a impresión. Puedes revisarlo o imprimirlo de nuevo.
+            </DialogDescription>
+          </DialogHeader>
+
+          {ticketCobrado && (
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
+              <DetalleTicket
+                referencia={ticketCobrado.folio}
+                fecha={ticketCobrado.creadoEn}
+                cliente={ticketCobrado.cliente}
+                atendio={perfil?.nombre ?? "Personal Salúva"}
+                canal={ticketCobrado.canal}
+                items={ticketCobrado.items}
+                subtotal={ticketCobrado.subtotal}
+                iva={ticketCobrado.iva}
+                total={ticketCobrado.total}
+                negocio={negocio}
+                esVenta
+                metodoPago={ticketCobrado.metodoPago}
+                propina={ticketCobrado.propina}
+                montoRecibido={ticketCobrado.montoRecibido}
+                cambio={ticketCobrado.cambio}
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTicketCobrado(null)}>
+              Cerrar
+            </Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="mr-1.5 h-4 w-4" />
+              Reimprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {ticketCobrado && (
+        <div className="preticket-print">
+          <DetalleTicket
+            referencia={ticketCobrado.folio}
+            fecha={ticketCobrado.creadoEn}
+            cliente={ticketCobrado.cliente}
+            atendio={perfil?.nombre ?? "Personal Salúva"}
+            canal={ticketCobrado.canal}
+            items={ticketCobrado.items}
+            subtotal={ticketCobrado.subtotal}
+            iva={ticketCobrado.iva}
+            total={ticketCobrado.total}
+            negocio={negocio}
+            esVenta
+            metodoPago={ticketCobrado.metodoPago}
+            propina={ticketCobrado.propina}
+            montoRecibido={ticketCobrado.montoRecibido}
+            cambio={ticketCobrado.cambio}
           />
         </div>
       )}
