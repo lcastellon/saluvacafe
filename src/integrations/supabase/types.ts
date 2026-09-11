@@ -77,6 +77,89 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_cajas: {
+        Row: {
+          abierto_en: string
+          abierto_por: string
+          abierto_por_nombre: string
+          cerrado_en: string | null
+          cerrado_por: string | null
+          cerrado_por_nombre: string | null
+          efectivo_contado: number | null
+          estado: string
+          fondo_inicial: number
+          id: string
+          notas_cierre: string | null
+          terminal_id: string
+        }
+        Insert: {
+          abierto_en?: string
+          abierto_por: string
+          abierto_por_nombre: string
+          cerrado_en?: string | null
+          cerrado_por?: string | null
+          cerrado_por_nombre?: string | null
+          efectivo_contado?: number | null
+          estado?: string
+          fondo_inicial?: number
+          id?: string
+          notas_cierre?: string | null
+          terminal_id: string
+        }
+        Update: {
+          abierto_en?: string
+          abierto_por?: string
+          abierto_por_nombre?: string
+          cerrado_en?: string | null
+          cerrado_por?: string | null
+          cerrado_por_nombre?: string | null
+          efectivo_contado?: number | null
+          estado?: string
+          fondo_inicial?: number
+          id?: string
+          notas_cierre?: string | null
+          terminal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_cajas_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "pos_terminales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_terminales: {
+        Row: {
+          activa: boolean
+          autorizada_en: string
+          autorizada_por: string
+          id: string
+          nombre: string
+          token_hash: string
+          ultimo_uso_en: string
+        }
+        Insert: {
+          activa?: boolean
+          autorizada_en?: string
+          autorizada_por: string
+          id?: string
+          nombre: string
+          token_hash: string
+          ultimo_uso_en?: string
+        }
+        Update: {
+          activa?: boolean
+          autorizada_en?: string
+          autorizada_por?: string
+          id?: string
+          nombre?: string
+          token_hash?: string
+          ultimo_uso_en?: string
+        }
+        Relationships: []
+      }
       pos_venta_items: {
         Row: {
           cantidad: number
@@ -121,6 +204,7 @@ export type Database = {
       pos_ventas: {
         Row: {
           actualizado_en: string
+          caja_id: string | null
           cambio: number
           canal: string
           client_id: string
@@ -139,6 +223,7 @@ export type Database = {
         }
         Insert: {
           actualizado_en?: string
+          caja_id?: string | null
           cambio?: number
           canal: string
           client_id: string
@@ -157,6 +242,7 @@ export type Database = {
         }
         Update: {
           actualizado_en?: string
+          caja_id?: string | null
           cambio?: number
           canal?: string
           client_id?: string
@@ -173,7 +259,15 @@ export type Database = {
           total?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pos_ventas_caja_id_fkey"
+            columns: ["caja_id"]
+            isOneToOne: false
+            referencedRelation: "pos_cajas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -198,6 +292,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      abrir_caja_pos: {
+        Args: { p_fondo_inicial: number; p_token: string }
+        Returns: Json
+      }
+      autorizar_terminal_pos: {
+        Args: { p_nombre: string; p_token: string }
+        Returns: Json
+      }
+      cerrar_caja_pos: {
+        Args: { p_efectivo_contado: number; p_notas?: string; p_token: string }
+        Returns: Json
+      }
+      estado_terminal_caja: { Args: { p_token: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
