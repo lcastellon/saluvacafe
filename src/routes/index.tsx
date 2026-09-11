@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { emailDeCodigo, passwordDeCodigo, useAuth } from "@/lib/auth";
-import { asegurarAdmin } from "@/lib/personal.functions";
 import { DoodleTaza, DoodleTrazo, DoodleFlor } from "@/components/doodles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +32,6 @@ function Acceso() {
   const [cargando, setCargando] = useState(false);
   const navigate = useNavigate();
   const { session, cargando: cargandoSesion, refrescar } = useAuth();
-
-  useEffect(() => {
-    void asegurarAdmin().catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     if (!cargandoSesion && session) void navigate({ to: "/panel", replace: true });
@@ -91,7 +86,7 @@ function Acceso() {
           </h2>
           <DoodleTrazo className="mt-3 h-2 w-40 text-sidebar-primary" />
           <p className="mt-4 max-w-sm text-sm text-sidebar-foreground/70">
-            El administrador crea y desactiva los códigos de las baristas desde el panel de personal.
+            Administración crea y desactiva los códigos de las baristas desde el panel de personal.
           </p>
         </div>
         <DoodleFlor className="absolute -bottom-10 -right-10 h-56 w-56 text-sidebar-primary/20" />
@@ -122,11 +117,6 @@ function Acceso() {
           <Button type="submit" className="mt-6 w-full" disabled={cargando}>
             {cargando ? "Entrando…" : "Entrar"}
           </Button>
-
-          <p className="mt-6 rounded-lg border border-border bg-cream p-3 text-xs text-muted-foreground">
-            Código de administrador inicial: <span className="font-semibold text-foreground">100100</span>. Desde
-            el panel de personal puedes crear un código individual para cada barista.
-          </p>
         </form>
       </section>
     </main>

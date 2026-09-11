@@ -17,10 +17,11 @@ import {
   CloudUpload,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { listarInsumos } from "@/lib/inventario.functions";
+import { asegurarAdministradores } from "@/lib/personal.functions";
 import { useTienda } from "@/lib/tienda";
 import { useCajaTurno } from "@/lib/caja-turno";
 
@@ -60,6 +61,15 @@ export function AppShell({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const listar = useServerFn(listarInsumos);
+  const prepararAdministradores = useServerFn(asegurarAdministradores);
+
+  useEffect(() => {
+    if (esAdmin && enLinea) {
+      void prepararAdministradores()
+        .then(() => qc.invalidateQueries({ queryKey: ["personal"] }))
+        .catch(() => undefined);
+    }
+  }, [esAdmin, enLinea, prepararAdministradores, qc]);
 
   const { data: insumos } = useQuery({
     queryKey: ["insumos"],
@@ -131,7 +141,6 @@ export function AppShell({
             {perfil?.nombre ?? "Salúva"}
           </p>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
-            Código {perfil?.codigo ?? "······"} ·{" "}
             {terminalAutorizada
               ? `${terminalNombre} · ${terminalSucursalNombre ?? "Sucursal"}`
               : "Sólo consulta"}

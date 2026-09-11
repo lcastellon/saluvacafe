@@ -1,11 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
-const CODIGO_ADMIN = "100100";
+const ADMINISTRADORES_NUEVOS = ["Felipe", "Valeria"] as const;
 const email = (codigo: string) => `${codigo}@saluva.app`;
 const password = (codigo: string) => `slv-${codigo}`;
 
-async function exigirAdmin(context: { supabase: any; userId: string }) {
+function codigoAleatorio() {
+  const valor = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(valor);
+  return String(100000 + (valor[0] % 900000));
+}
+
+async function exigirAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -13,31 +21,145 @@ async function exigirAdmin(context: { supabase: any; userId: string }) {
   if (!data) throw new Error("Solo el administrador puede realizar esta acción");
 }
 
-/** Crea la cuenta de administrador inicial si todavía no existe ninguna. */
-export const asegurarAdmin = createServerFn({ method: "POST" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { count } = await supabaseAdmin
-    .from("user_roles")
-    .select("id", { count: "exact", head: true })
-    .eq("role", "admin");
-  if ((count ?? 0) > 0) return { creado: false, codigo: CODIGO_ADMIN };
+/** Completa el equipo administrativo desde una sesión de administrador existente. */
+export const asegurarAdministradores = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await exigirAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let creados = 0;
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
-    email: email(CODIGO_ADMIN),
-    password: password(CODIGO_ADMIN),
-    email_confirm: true,
-  });
-  if (error || !data.user) throw new Error(error?.message ?? "No se pudo crear el administrador");
+    const { data: administradorActual } = await supabaseAdmin
+      .from("perfiles")
+      .select("id")
+      .in("nombre", ["Admin", "Administrador"])
+      .limit(1);
+    const idAdmin = administradorActual?.[0]?.id ?? context.userId;
+    const { error: errorAdmin } = await supabaseAdmin
+      .from("perfiles")
+      .update({ nombre: "Admin", activo: true })
+      .eq("id", idAdmin);
+    if (errorAdmin) throw new Error(errorAdmin.message);
+    const { error: errorRolAdmin } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: idAdmin, role: "admin" }, { onConflict: "user_id,role" });
+    if (errorRolAdmin) throw new Error(errorRolAdmin.message);
 
-  await supabaseAdmin.from("perfiles").insert({
-    id: data.user.id,
-    nombre: "Administrador",
-    codigo: CODIGO_ADMIN,
-    activo: true,
+    for (const nombre of ADMINISTRADORES_NUEVOS) {
+      const { data: perfiles, error: errorPerfil } = await supabaseAdmin
+        .from("perfiles")
+        .select("id")
+        .eq("nombre", nombre)
+        .limit(1);
+      if (errorPerfil) throw new Error(errorPerfil.message);
+
+      let id = perfiles?.[0]?.id;
+      if (!id) {
+        for (let intento = 0; intento < 10 && !id; intento += 1) {
+          const codigo = codigoAleatorio();
+          const { data: codigoEnUso } = await supabaseAdmin
+            .from("perfiles")
+            .select("id")
+            .eq("codigo", codigo)
+            .maybeSingle();
+          if (codigoEnUso) continue;
+
+          const { data: cuenta, error: errorCuenta } = await supabaseAdmin.auth.admin.createUser({
+            email: email(codigo),
+            password: password(codigo),
+            email_confirm: true,
+          });
+          if (errorCuenta || !cuenta.user) continue;
+
+          const { error: errorInsertar } = await supabaseAdmin.from("perfiles").insert({
+            id: cuenta.user.id,
+            nombre,
+            codigo,
+            activo: true,
+          });
+          if (errorInsertar) {
+            await supabaseAdmin.auth.admin.deleteUser(cuenta.user.id);
+            continue;
+          }
+          id = cuenta.user.id;
+          creados += 1;
+        }
+      }
+      if (!id) throw new Error(`No se pudo crear la cuenta de ${nombre}`);
+
+      const { error: errorActualizar } = await supabaseAdmin
+        .from("perfiles")
+        .update({ activo: true })
+        .eq("id", id);
+      if (errorActualizar) throw new Error(errorActualizar.message);
+      const { error: errorRol } = await supabaseAdmin
+        .from("user_roles")
+        .upsert({ user_id: id, role: "admin" }, { onConflict: "user_id,role" });
+      if (errorRol) throw new Error(errorRol.message);
+    }
+
+    return { creados };
   });
-  await supabaseAdmin.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
-  return { creado: true, codigo: CODIGO_ADMIN };
-});
+
+export const cambiarCodigoPropio = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { codigoActual: string; nuevoCodigo: string; confirmarCodigo: string }) => {
+      const codigoActual = input.codigoActual?.trim();
+      const nuevoCodigo = input.nuevoCodigo?.trim();
+      const confirmarCodigo = input.confirmarCodigo?.trim();
+      if (!/^\d{6}$/.test(codigoActual ?? "")) {
+        throw new Error("Escribe tu código actual de 6 dígitos");
+      }
+      if (!/^\d{6}$/.test(nuevoCodigo ?? "")) {
+        throw new Error("El nuevo código debe tener 6 dígitos");
+      }
+      if (nuevoCodigo !== confirmarCodigo) throw new Error("Los códigos nuevos no coinciden");
+      if (nuevoCodigo === codigoActual) throw new Error("Elige un código diferente al actual");
+      return { codigoActual, nuevoCodigo };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    await exigirAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: perfil, error: errorPerfil } = await supabaseAdmin
+      .from("perfiles")
+      .select("codigo")
+      .eq("id", context.userId)
+      .single();
+    if (errorPerfil || !perfil) throw new Error("No se pudo verificar tu cuenta");
+    if (perfil.codigo !== data.codigoActual) throw new Error("El código actual es incorrecto");
+
+    const { data: codigoOcupado } = await supabaseAdmin
+      .from("perfiles")
+      .select("id")
+      .eq("codigo", data.nuevoCodigo)
+      .neq("id", context.userId)
+      .maybeSingle();
+    if (codigoOcupado) throw new Error("Ese código ya está en uso");
+
+    const { error: errorCuenta } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      email: email(data.nuevoCodigo),
+      password: password(data.nuevoCodigo),
+      email_confirm: true,
+    });
+    if (errorCuenta) throw new Error(errorCuenta.message);
+
+    const { error: errorCodigo } = await supabaseAdmin
+      .from("perfiles")
+      .update({ codigo: data.nuevoCodigo })
+      .eq("id", context.userId);
+    if (errorCodigo) {
+      await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+        email: email(data.codigoActual),
+        password: password(data.codigoActual),
+        email_confirm: true,
+      });
+      throw new Error("No se pudo guardar el nuevo código. Inténtalo de nuevo");
+    }
+
+    return { ok: true };
+  });
 
 export const listarPersonal = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -50,8 +172,11 @@ export const listarPersonal = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const { data: roles } = await context.supabase.from("user_roles").select("user_id, role");
-    const mapa = new Map((roles ?? []).map((r: any) => [r.user_id, r.role]));
-    return (data ?? []).map((p: any) => ({ ...p, rol: (mapa.get(p.id) ?? "barista") as "admin" | "barista" }));
+    const mapa = new Map((roles ?? []).map((r) => [r.user_id, r.role]));
+    return (data ?? []).map((p) => ({
+      ...p,
+      rol: (mapa.get(p.id) ?? "barista") as "admin" | "barista",
+    }));
   });
 
 export const crearBarista = createServerFn({ method: "POST" })
