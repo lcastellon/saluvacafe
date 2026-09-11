@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,19 +33,31 @@ export function ControlCaja() {
     cajaActual,
     terminalAutorizada,
     terminalNombre,
+    terminalSucursalNombre,
     cargandoCaja,
     errorCaja,
+    sucursales,
     refrescarCaja,
+    crearSucursal,
     autorizarTerminal,
     abrirCaja,
     cerrarCaja,
   } = useCajaTurno();
-  const [dialogo, setDialogo] = useState<"autorizar" | "abrir" | "cerrar" | null>(null);
+  const [dialogo, setDialogo] = useState<"autorizar" | "sucursal" | "abrir" | "cerrar" | null>(
+    null,
+  );
   const [nombreTerminal, setNombreTerminal] = useState("Caja 1");
+  const [sucursalId, setSucursalId] = useState("");
+  const [nuevaSucursal, setNuevaSucursal] = useState("");
+  const [direccionSucursal, setDireccionSucursal] = useState("");
   const [fondoInicial, setFondoInicial] = useState("0");
   const [efectivoContado, setEfectivoContado] = useState("");
   const [notas, setNotas] = useState("");
   const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    if (!sucursalId && sucursales[0]) setSucursalId(sucursales[0].id);
+  }, [sucursalId, sucursales]);
 
   const ejecutar = async (accion: () => Promise<void>, mensaje: string) => {
     setGuardando(true);
@@ -62,7 +74,31 @@ export function ControlCaja() {
 
   const confirmarAutorizacion = (evento: FormEvent) => {
     evento.preventDefault();
-    void ejecutar(() => autorizarTerminal(nombreTerminal), "Esta computadora quedó autorizada");
+    if (!sucursalId) {
+      toast.error("Selecciona la sucursal de esta terminal");
+      return;
+    }
+    void ejecutar(
+      () => autorizarTerminal(nombreTerminal, sucursalId),
+      "Esta computadora quedó autorizada",
+    );
+  };
+
+  const confirmarSucursal = async (evento: FormEvent) => {
+    evento.preventDefault();
+    if (!nuevaSucursal.trim()) return;
+    setGuardando(true);
+    try {
+      await crearSucursal(nuevaSucursal, direccionSucursal);
+      setNuevaSucursal("");
+      setDireccionSucursal("");
+      setDialogo("autorizar");
+      toast.success("Sucursal registrada");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No fue posible crear la sucursal");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const confirmarApertura = (evento: FormEvent) => {
@@ -120,8 +156,8 @@ export function ControlCaja() {
                   el {fechaHora(cajaActual.abiertoEn)}
                 </p>
                 <p>
-                  Fondo inicial: {mxnExacto(cajaActual.fondoInicial)} · Terminal:{" "}
-                  {cajaActual.terminalNombre}
+                  Sucursal: {cajaActual.sucursalNombre} · Fondo inicial:{" "}
+                  {mxnExacto(cajaActual.fondoInicial)} · Terminal: {cajaActual.terminalNombre}
                 </p>
               </div>
             ) : (
@@ -132,7 +168,10 @@ export function ControlCaja() {
 
             <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <Laptop className="h-3.5 w-3.5" />
-              Este dispositivo: {terminalAutorizada ? terminalNombre : "no autorizado"}
+              Este dispositivo:{" "}
+              {terminalAutorizada
+                ? `${terminalNombre} · ${terminalSucursalNombre ?? "Sucursal asignada"}`
+                : "no autorizado"}
             </p>
           </div>
 
@@ -197,25 +236,103 @@ export function ControlCaja() {
             <DialogHeader>
               <DialogTitle>Autorizar computadora del local</DialogTitle>
               <DialogDescription>
-                Haz esto únicamente en el equipo que permanecerá físicamente en Salúva.
+                Asigna este dispositivo a la sucursal donde permanecerá físicamente.
               </DialogDescription>
             </DialogHeader>
-            <div className="my-5 grid gap-2">
-              <Label htmlFor="nombre-terminal">Nombre de la terminal</Label>
-              <Input
-                id="nombre-terminal"
-                value={nombreTerminal}
-                onChange={(evento) => setNombreTerminal(evento.target.value)}
-                maxLength={40}
-                autoFocus
-              />
+            <div className="my-5 grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="nombre-terminal">Nombre de la terminal</Label>
+                <Input
+                  id="nombre-terminal"
+                  value={nombreTerminal}
+                  onChange={(evento) => setNombreTerminal(evento.target.value)}
+                  maxLength={40}
+                  placeholder="Ej. Caja principal"
+                  autoFocus
+                />
+              </div>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="sucursal-terminal">Sucursal</Label>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary hover:underline"
+                    onClick={() => setDialogo("sucursal")}
+                  >
+                    Agregar sucursal
+                  </button>
+                </div>
+                <select
+                  id="sucursal-terminal"
+                  value={sucursalId}
+                  onChange={(evento) => setSucursalId(evento.target.value)}
+                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  required
+                >
+                  <option value="" disabled>
+                    Selecciona una sucursal
+                  </option>
+                  {sucursales.map((sucursal) => (
+                    <option key={sucursal.id} value={sucursal.id}>
+                      {sucursal.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogo(null)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={guardando || !nombreTerminal.trim()}>
+              <Button type="submit" disabled={guardando || !nombreTerminal.trim() || !sucursalId}>
                 {guardando ? "Autorizando…" : "Autorizar equipo"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={dialogo === "sucursal"}
+        onOpenChange={(abierto) => !abierto && setDialogo(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={confirmarSucursal}>
+            <DialogHeader>
+              <DialogTitle>Registrar sucursal</DialogTitle>
+              <DialogDescription>
+                Sólo los administradores pueden agregar sucursales a Salúva.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="my-5 grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="nueva-sucursal">Nombre</Label>
+                <Input
+                  id="nueva-sucursal"
+                  value={nuevaSucursal}
+                  onChange={(evento) => setNuevaSucursal(evento.target.value)}
+                  maxLength={60}
+                  placeholder="Ej. Salúva Centro"
+                  autoFocus
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="direccion-sucursal">Dirección (opcional)</Label>
+                <Input
+                  id="direccion-sucursal"
+                  value={direccionSucursal}
+                  onChange={(evento) => setDireccionSucursal(evento.target.value)}
+                  maxLength={160}
+                  placeholder="Calle, número y colonia"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogo("autorizar")}>
+                Volver
+              </Button>
+              <Button type="submit" disabled={guardando || !nuevaSucursal.trim()}>
+                {guardando ? "Guardando…" : "Registrar sucursal"}
               </Button>
             </DialogFooter>
           </form>

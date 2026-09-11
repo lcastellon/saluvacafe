@@ -15,23 +15,34 @@ export type CajaActual = {
   id: string;
   terminalId: string;
   terminalNombre: string;
+  sucursalId: string;
+  sucursalNombre: string;
   abiertoPor: string;
   abiertoPorNombre: string;
   abiertoEn: string;
   fondoInicial: number;
 };
 
+export type Sucursal = {
+  id: string;
+  nombre: string;
+  direccion: string;
+};
+
 type EstadoCaja = {
   terminalAutorizada: boolean;
   terminalNombre: string | null;
+  terminalSucursalNombre: string | null;
   cajaActual: CajaActual | null;
 };
 
 type Ctx = EstadoCaja & {
   cargandoCaja: boolean;
   errorCaja: string | null;
+  sucursales: Sucursal[];
   refrescarCaja: () => Promise<void>;
-  autorizarTerminal: (nombre: string) => Promise<void>;
+  crearSucursal: (nombre: string, direccion: string) => Promise<void>;
+  autorizarTerminal: (nombre: string, sucursalId: string) => Promise<void>;
   abrirCaja: (fondoInicial: number) => Promise<void>;
   cerrarCaja: (efectivoContado: number, notas: string) => Promise<void>;
 };
@@ -41,6 +52,7 @@ const CACHE_KEY = "saluva-estado-caja-v1";
 const estadoInicial: EstadoCaja = {
   terminalAutorizada: false,
   terminalNombre: null,
+  terminalSucursalNombre: null,
   cajaActual: null,
 };
 
@@ -67,7 +79,7 @@ function obtenerTokenTerminal() {
 function leerCache(): EstadoCaja {
   try {
     const cache = JSON.parse(window.localStorage.getItem(CACHE_KEY) ?? "null") as EstadoCaja | null;
-    return cache ?? estadoInicial;
+    return cache ? { ...estadoInicial, ...cache } : estadoInicial;
   } catch {
     return estadoInicial;
   }
@@ -88,6 +100,10 @@ function interpretarEstado(data: Json): EstadoCaja {
     terminalAutorizada: respuesta["terminalAutorizada"] === true,
     terminalNombre:
       typeof respuesta["terminalNombre"] === "string" ? respuesta["terminalNombre"] : null,
+    terminalSucursalNombre:
+      typeof respuesta["terminalSucursalNombre"] === "string"
+        ? respuesta["terminalSucursalNombre"]
+        : null,
     cajaActual:
       respuesta["cajaActual"] &&
       typeof respuesta["cajaActual"] === "object" &&
@@ -95,6 +111,22 @@ function interpretarEstado(data: Json): EstadoCaja {
         ? (respuesta["cajaActual"] as unknown as CajaActual)
         : null,
   };
+}
+
+function interpretarSucursales(data: Json): Sucursal[] {
+  if (!Array.isArray(data)) return [];
+  return data.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const registro = item as Record<string, Json | undefined>;
+    if (typeof registro["id"] !== "string" || typeof registro["nombre"] !== "string") return [];
+    return [
+      {
+        id: registro["id"],
+        nombre: registro["nombre"],
+        direccion: typeof registro["direccion"] === "string" ? registro["direccion"] : "",
+      },
+    ];
+  });
 }
 
 function mensajeDeError(error: unknown) {
@@ -109,8 +141,9 @@ function mensajeDeError(error: unknown) {
 }
 
 export function CajaTurnoProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuth();
+  const { session, esAdmin } = useAuth();
   const [estado, setEstado] = useState<EstadoCaja>(estadoInicial);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [cargandoCaja, setCargandoCaja] = useState(true);
   const [errorCaja, setErrorCaja] = useState<string | null>(null);
 
@@ -122,6 +155,7 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
   const refrescarCaja = useCallback(async () => {
     if (!session) {
       setEstado(estadoInicial);
+      setSucursales([]);
       setCargandoCaja(false);
       return;
     }
@@ -135,11 +169,14 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
 
     setCargandoCaja(true);
     try {
-      const { data, error } = await ejecutarRpc("estado_terminal_caja", {
-        p_token: obtenerTokenTerminal(),
-      });
-      if (error) throw error;
-      aplicarEstado(interpretarEstado(data));
+      const [estadoRemoto, sucursalesRemotas] = await Promise.all([
+        ejecutarRpc("estado_terminal_caja", { p_token: obtenerTokenTerminal() }),
+        esAdmin ? ejecutarRpc("listar_sucursales_pos") : Promise.resolve(null),
+      ]);
+      if (estadoRemoto.error) throw estadoRemoto.error;
+      if (sucursalesRemotas?.error) throw sucursalesRemotas.error;
+      aplicarEstado(interpretarEstado(estadoRemoto.data));
+      if (sucursalesRemotas) setSucursales(interpretarSucursales(sucursalesRemotas.data));
       setErrorCaja(null);
     } catch (error) {
       setEstado(leerCache());
@@ -147,7 +184,7 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
     } finally {
       setCargandoCaja(false);
     }
-  }, [aplicarEstado, session]);
+  }, [aplicarEstado, esAdmin, session]);
 
   useEffect(() => {
     void refrescarCaja();
@@ -181,9 +218,22 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
       ...estado,
       cargandoCaja,
       errorCaja,
+      sucursales,
       refrescarCaja,
-      autorizarTerminal: (nombre) =>
-        ejecutarAccion("autorizar_terminal_pos", { p_nombre: nombre.trim() || "Caja 1" }),
+      crearSucursal: async (nombre, direccion) => {
+        if (!navigator.onLine) throw new Error("Necesitas conexión para registrar una sucursal.");
+        const { data, error } = await ejecutarRpc("crear_sucursal_pos", {
+          p_nombre: nombre.trim(),
+          p_direccion: direccion.trim(),
+        });
+        if (error) throw new Error(mensajeDeError(error));
+        setSucursales(interpretarSucursales(data));
+      },
+      autorizarTerminal: (nombre, sucursalId) =>
+        ejecutarAccion("autorizar_terminal_pos", {
+          p_nombre: nombre.trim() || "Caja 1",
+          p_sucursal_id: sucursalId,
+        }),
       abrirCaja: (fondoInicial) =>
         ejecutarAccion("abrir_caja_pos", { p_fondo_inicial: fondoInicial }),
       cerrarCaja: (efectivoContado, notas) =>
@@ -192,7 +242,7 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
           p_notas: notas.trim(),
         }),
     }),
-    [cargandoCaja, errorCaja, estado, ejecutarAccion, refrescarCaja],
+    [cargandoCaja, errorCaja, estado, ejecutarAccion, refrescarCaja, sucursales],
   );
 
   return <CajaTurnoContext.Provider value={value}>{children}</CajaTurnoContext.Provider>;

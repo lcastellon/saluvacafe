@@ -56,7 +56,7 @@ export function AppShell({
 }) {
   const { perfil, esAdmin } = useAuth();
   const { enLinea, pendientesSincronizar, sincronizarAhora } = useTienda();
-  const { terminalAutorizada, terminalNombre } = useCajaTurno();
+  const { terminalAutorizada, terminalNombre, terminalSucursalNombre } = useCajaTurno();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const listar = useServerFn(listarInsumos);
@@ -132,7 +132,9 @@ export function AppShell({
           </p>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
             Código {perfil?.codigo ?? "······"} ·{" "}
-            {terminalAutorizada ? terminalNombre : "Sólo consulta"}
+            {terminalAutorizada
+              ? `${terminalNombre} · ${terminalSucursalNombre ?? "Sucursal"}`
+              : "Sólo consulta"}
           </p>
           <button
             onClick={salir}
