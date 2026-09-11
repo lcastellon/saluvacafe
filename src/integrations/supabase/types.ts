@@ -369,6 +369,14 @@ export type Database = {
       }
       listar_sucursales_pos: { Args: never; Returns: Json }
       listar_ventas_pos: { Args: never; Returns: Json }
+      reporte_periodo_pos: {
+        Args: {
+          p_desde: string
+          p_hasta: string
+          p_sucursal_id?: string | null
+        }
+        Returns: Json
+      }
       sincronizar_venta_pos: { Args: { p_venta: Json }; Returns: string }
     }
     Enums: {

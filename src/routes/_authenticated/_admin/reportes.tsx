@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ReporteCajaPeriodico } from "@/components/ReporteCajaPeriodico";
 import { DoodleFlor, DoodleGrano, DoodleTicket, DoodleTrazo } from "@/components/doodles";
 import { mxn } from "@/data/saluva";
 import { useTienda } from "@/lib/tienda";
@@ -65,9 +66,11 @@ function Reportes() {
   return (
     <AppShell
       titulo="Reportes de ventas"
-      descripcion="Datos reales de los últimos siete días"
-      acciones={<Badge variant="secondary">7 días</Badge>}
+      descripcion="Cortes imprimibles y análisis de ventas"
+      acciones={<Badge variant="secondary">Administración</Badge>}
     >
+      <ReporteCajaPeriodico />
+
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="surface grain-top p-5">
           <p className="text-sm text-muted-foreground">Ventas</p>
