@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useTienda } from "@/lib/tienda";
 import { useAuth } from "@/lib/auth";
+import { useCajaTurno } from "@/lib/caja-turno";
 import {
   mxnExacto,
   esBebida,
@@ -210,6 +211,7 @@ function DetalleTicket({
 
 function Caja() {
   const { perfil } = useAuth();
+  const { cajaActual, terminalAutorizada, cargandoCaja } = useCajaTurno();
   const { productos, crearPedido, negocio, enLinea } = useTienda();
   const [cat, setCat] = useState<(typeof categorias)[number]>("Todo");
   const [busqueda, setBusqueda] = useState("");
@@ -317,6 +319,10 @@ function Caja() {
 
   const abrirCobro = () => {
     if (items.length === 0) return;
+    if (!terminalAutorizada || !cajaActual) {
+      toast.error("Primero abre la caja desde la computadora autorizada");
+      return;
+    }
     setPropinaTexto("0");
     setRecibidoTexto("");
     setCobroAbierto(true);
@@ -551,8 +557,19 @@ function Caja() {
             </p>
           )}
 
+          {!cargandoCaja && (!terminalAutorizada || !cajaActual) && (
+            <p className="mt-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+              Para cobrar, abre la caja desde la computadora autorizada del local.
+            </p>
+          )}
+
           <div className="mt-4 flex gap-2">
-            <Button className="flex-1" size="lg" disabled={items.length === 0} onClick={abrirCobro}>
+            <Button
+              className="flex-1"
+              size="lg"
+              disabled={items.length === 0 || cargandoCaja || !terminalAutorizada || !cajaActual}
+              onClick={abrirCobro}
+            >
               Cobrar
             </Button>
             <Button

@@ -18,6 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { useCajaTurno } from "@/lib/caja-turno";
 import {
   cargarSnapshot,
   eliminarPendiente,
@@ -97,6 +98,7 @@ function ejecutarRpc(nombre: string, argumentos?: Record<string, Json>): Promise
 
 export function TiendaProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
+  const { cajaActual } = useCajaTurno();
   const [productos, setProductos] = useState<Producto[]>(productosSeed);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [negocio, setNegocio] = useState<Negocio>(negocioInicial);
@@ -243,6 +245,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
           cliente: cliente || "Mostrador",
           canal,
           metodoPago: enLinea ? metodoPago : "Efectivo",
+          cajaId: cajaActual?.id,
           estado: "En preparación",
           hora: new Date(creadoEn).toLocaleTimeString("es-MX", {
             hour: "2-digit",
@@ -265,6 +268,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
     }),
     [
       cargandoLocal,
+      cajaActual?.id,
       enLinea,
       negocio,
       pedidos,

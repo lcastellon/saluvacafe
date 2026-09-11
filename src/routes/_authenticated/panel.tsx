@@ -10,6 +10,7 @@ import { esHoy, productosMasVendidos, ventasPorHora, ventasUltimosSieteDias } fr
 import { listarInsumos } from "@/lib/inventario.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ControlCaja } from "@/components/ControlCaja";
 import {
   ArrowUpRight,
   Check,
@@ -251,15 +252,8 @@ function Dashboard() {
   );
 
   return (
-    <AppShell
-      titulo="Buen día, Salúva"
-      descripcion="Resumen real del turno de hoy"
-      acciones={
-        <Button asChild>
-          <Link to="/caja">Abrir caja</Link>
-        </Button>
-      }
-    >
+    <AppShell titulo="Buen día, Salúva" descripcion="Resumen real del turno de hoy">
+      <ControlCaja />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="Ventas del día"

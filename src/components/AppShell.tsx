@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { listarInsumos } from "@/lib/inventario.functions";
 import { useTienda } from "@/lib/tienda";
+import { useCajaTurno } from "@/lib/caja-turno";
 
 const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[] = [
   { to: "/panel", label: "Dashboard", icon: LayoutDashboard },
@@ -55,6 +56,7 @@ export function AppShell({
 }) {
   const { perfil, esAdmin } = useAuth();
   const { enLinea, pendientesSincronizar, sincronizarAhora } = useTienda();
+  const { terminalAutorizada, terminalNombre } = useCajaTurno();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const listar = useServerFn(listarInsumos);
@@ -129,7 +131,8 @@ export function AppShell({
             {perfil?.nombre ?? "Salúva"}
           </p>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
-            Código {perfil?.codigo ?? "······"} · Caja 1
+            Código {perfil?.codigo ?? "······"} ·{" "}
+            {terminalAutorizada ? terminalNombre : "Sólo consulta"}
           </p>
           <button
             onClick={salir}
