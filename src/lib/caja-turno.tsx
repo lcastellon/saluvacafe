@@ -85,13 +85,14 @@ function interpretarEstado(data: Json): EstadoCaja {
   if (!data || typeof data !== "object" || Array.isArray(data)) return estadoInicial;
   const respuesta = data as Record<string, Json | undefined>;
   return {
-    terminalAutorizada: respuesta.terminalAutorizada === true,
-    terminalNombre: typeof respuesta.terminalNombre === "string" ? respuesta.terminalNombre : null,
+    terminalAutorizada: respuesta["terminalAutorizada"] === true,
+    terminalNombre:
+      typeof respuesta["terminalNombre"] === "string" ? respuesta["terminalNombre"] : null,
     cajaActual:
-      respuesta.cajaActual &&
-      typeof respuesta.cajaActual === "object" &&
-      !Array.isArray(respuesta.cajaActual)
-        ? (respuesta.cajaActual as unknown as CajaActual)
+      respuesta["cajaActual"] &&
+      typeof respuesta["cajaActual"] === "object" &&
+      !Array.isArray(respuesta["cajaActual"])
+        ? (respuesta["cajaActual"] as unknown as CajaActual)
         : null,
   };
 }
