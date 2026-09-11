@@ -90,6 +90,7 @@ export type Database = {
           fondo_inicial: number
           id: string
           notas_cierre: string | null
+          sucursal_id: string
           terminal_id: string
         }
         Insert: {
@@ -104,6 +105,7 @@ export type Database = {
           fondo_inicial?: number
           id?: string
           notas_cierre?: string | null
+          sucursal_id: string
           terminal_id: string
         }
         Update: {
@@ -118,9 +120,17 @@ export type Database = {
           fondo_inicial?: number
           id?: string
           notas_cierre?: string | null
+          sucursal_id?: string
           terminal_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pos_cajas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sucursales"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pos_cajas_terminal_id_fkey"
             columns: ["terminal_id"]
@@ -130,6 +140,33 @@ export type Database = {
           },
         ]
       }
+      pos_sucursales: {
+        Row: {
+          activa: boolean
+          creada_en: string
+          creada_por: string | null
+          direccion: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activa?: boolean
+          creada_en?: string
+          creada_por?: string | null
+          direccion?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activa?: boolean
+          creada_en?: string
+          creada_por?: string | null
+          direccion?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       pos_terminales: {
         Row: {
           activa: boolean
@@ -137,6 +174,7 @@ export type Database = {
           autorizada_por: string
           id: string
           nombre: string
+          sucursal_id: string
           token_hash: string
           ultimo_uso_en: string
         }
@@ -146,6 +184,7 @@ export type Database = {
           autorizada_por: string
           id?: string
           nombre: string
+          sucursal_id: string
           token_hash: string
           ultimo_uso_en?: string
         }
@@ -155,10 +194,19 @@ export type Database = {
           autorizada_por?: string
           id?: string
           nombre?: string
+          sucursal_id?: string
           token_hash?: string
           ultimo_uso_en?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pos_terminales_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pos_venta_items: {
         Row: {
@@ -297,11 +345,15 @@ export type Database = {
         Returns: Json
       }
       autorizar_terminal_pos: {
-        Args: { p_nombre: string; p_token: string }
+        Args: { p_nombre: string; p_sucursal_id: string; p_token: string }
         Returns: Json
       }
       cerrar_caja_pos: {
         Args: { p_efectivo_contado: number; p_notas?: string; p_token: string }
+        Returns: Json
+      }
+      crear_sucursal_pos: {
+        Args: { p_direccion?: string; p_nombre: string }
         Returns: Json
       }
       estado_terminal_caja: { Args: { p_token: string }; Returns: Json }
@@ -312,6 +364,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      listar_sucursales_pos: { Args: never; Returns: Json }
       listar_ventas_pos: { Args: never; Returns: Json }
       sincronizar_venta_pos: { Args: { p_venta: Json }; Returns: string }
     }
