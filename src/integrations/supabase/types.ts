@@ -77,6 +77,104 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_venta_items: {
+        Row: {
+          cantidad: number
+          id: string
+          linea_id: string
+          nombre: string
+          opciones: Json
+          precio: number
+          producto_id: string
+          venta_id: string
+        }
+        Insert: {
+          cantidad: number
+          id?: string
+          linea_id: string
+          nombre: string
+          opciones?: Json
+          precio: number
+          producto_id: string
+          venta_id: string
+        }
+        Update: {
+          cantidad?: number
+          id?: string
+          linea_id?: string
+          nombre?: string
+          opciones?: Json
+          precio?: number
+          producto_id?: string
+          venta_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_venta_items_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: false
+            referencedRelation: "pos_ventas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_ventas: {
+        Row: {
+          actualizado_en: string
+          cambio: number
+          canal: string
+          client_id: string
+          cliente: string
+          creado_en: string
+          estado: string
+          folio: string
+          id: string
+          iva: number
+          metodo_pago: string
+          monto_recibido: number
+          propina: number
+          subtotal: number
+          total: number
+          user_id: string
+        }
+        Insert: {
+          actualizado_en?: string
+          cambio?: number
+          canal: string
+          client_id: string
+          cliente?: string
+          creado_en: string
+          estado: string
+          folio: string
+          id?: string
+          iva: number
+          metodo_pago: string
+          monto_recibido?: number
+          propina?: number
+          subtotal: number
+          total: number
+          user_id: string
+        }
+        Update: {
+          actualizado_en?: string
+          cambio?: number
+          canal?: string
+          client_id?: string
+          cliente?: string
+          creado_en?: string
+          estado?: string
+          folio?: string
+          id?: string
+          iva?: number
+          metodo_pago?: string
+          monto_recibido?: number
+          propina?: number
+          subtotal?: number
+          total?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -107,6 +205,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      listar_ventas_pos: { Args: never; Returns: Json }
+      sincronizar_venta_pos: { Args: { p_venta: Json }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "barista"

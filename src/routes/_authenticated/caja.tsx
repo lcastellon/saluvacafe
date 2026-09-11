@@ -851,9 +851,9 @@ function Caja() {
                 negocio={negocio}
                 esVenta
                 metodoPago={ticketCobrado.metodoPago}
-                propina={ticketCobrado.propina}
-                montoRecibido={ticketCobrado.montoRecibido}
-                cambio={ticketCobrado.cambio}
+                propina={ticketCobrado.propina ?? 0}
+                montoRecibido={ticketCobrado.montoRecibido ?? 0}
+                cambio={ticketCobrado.cambio ?? 0}
               />
             </div>
           )}
@@ -885,9 +885,9 @@ function Caja() {
             negocio={negocio}
             esVenta
             metodoPago={ticketCobrado.metodoPago}
-            propina={ticketCobrado.propina}
-            montoRecibido={ticketCobrado.montoRecibido}
-            cambio={ticketCobrado.cambio}
+            propina={ticketCobrado.propina ?? 0}
+            montoRecibido={ticketCobrado.montoRecibido ?? 0}
+            cambio={ticketCobrado.cambio ?? 0}
           />
         </div>
       )}
