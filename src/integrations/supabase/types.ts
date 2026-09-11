@@ -257,6 +257,7 @@ export type Database = {
           canal: string
           client_id: string
           cliente: string
+          comensales: number
           creado_en: string
           estado: string
           folio: string
@@ -276,6 +277,7 @@ export type Database = {
           canal: string
           client_id: string
           cliente?: string
+          comensales?: number
           creado_en: string
           estado: string
           folio: string
@@ -295,6 +297,7 @@ export type Database = {
           canal?: string
           client_id?: string
           cliente?: string
+          comensales?: number
           creado_en?: string
           estado?: string
           folio?: string

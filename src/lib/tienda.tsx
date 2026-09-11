@@ -52,6 +52,7 @@ type Ctx = {
     propina?: number;
     montoRecibido?: number;
     cambio?: number;
+    comensales: number;
   }) => Pedido;
 };
 
@@ -81,10 +82,26 @@ function folioVenta() {
 
 function ventasDesdeNube(data: Json): Pedido[] {
   if (!Array.isArray(data)) return [];
-  return (data as unknown as Pedido[]).map((pedido) => ({
+  return (data as unknown as Pedido[]).map((pedido) => normalizarPedido(pedido, "sincronizado"));
+}
+
+function normalizarPedido(
+  pedido: Pedido,
+  sincronizacion: Pedido["sincronizacion"] = pedido.sincronizacion,
+): Pedido {
+  const canalAnterior = pedido.canal as string;
+  const canal: Pedido["canal"] =
+    canalAnterior === "Mostrador"
+      ? "A mesa"
+      : canalAnterior === "App"
+        ? "Para recoger"
+        : pedido.canal;
+  return {
     ...pedido,
-    sincronizacion: "sincronizado",
-  }));
+    canal,
+    comensales: Math.max(1, Math.floor(Number(pedido.comensales) || 1)),
+    sincronizacion,
+  };
 }
 
 type RespuestaRpc = { data: Json; error: unknown };
@@ -116,7 +133,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         if (!activo) return;
         if (snapshot) {
           setProductos(snapshot.productos);
-          setPedidos(snapshot.pedidos);
+          setPedidos(snapshot.pedidos.map((pedido) => normalizarPedido(pedido)));
           setNegocio(snapshot.negocio);
         }
         setPendientesSincronizar(pendientes.length);
@@ -154,8 +171,9 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
     try {
       const pendientes = await listarPendientes();
       for (const pedido of pendientes) {
+        const pedidoNormalizado = normalizarPedido(pedido);
         const { error } = await ejecutarRpc("sincronizar_venta_pos", {
-          p_venta: pedido as unknown as Json,
+          p_venta: pedidoNormalizado as unknown as Json,
         });
         if (error) throw error;
         await eliminarPendiente(pedido.id);
@@ -235,6 +253,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         propina = 0,
         montoRecibido,
         cambio = 0,
+        comensales,
       }) => {
         const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
         const iva = subtotal * (negocio.iva / 100);
@@ -242,7 +261,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         const nuevo: Pedido = {
           id: idVenta(),
           folio: folioVenta(),
-          cliente: cliente || "Mostrador",
+          cliente: cliente || (canal === "A mesa" ? "Mesa" : "Cliente"),
           canal,
           metodoPago: enLinea ? metodoPago : "Efectivo",
           cajaId: cajaActual?.id,
@@ -258,6 +277,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
           propina,
           montoRecibido: montoRecibido ?? subtotal + iva + propina,
           cambio,
+          comensales: Math.max(1, Math.floor(comensales)),
           creadoEn,
           sincronizacion: "pendiente",
         };

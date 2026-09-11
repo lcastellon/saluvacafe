@@ -13,10 +13,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
-import { useCajaTurno } from "@/lib/caja-turno";
+import { useCajaTurno, type CajaActual } from "@/lib/caja-turno";
 import { useTienda } from "@/lib/tienda";
-import { mxnExacto } from "@/data/saluva";
-import { Clock3, Laptop, LockKeyhole, RefreshCw, Store, UnlockKeyhole } from "lucide-react";
+import { mxnExacto, type Pedido } from "@/data/saluva";
+import {
+  Clock3,
+  Laptop,
+  LockKeyhole,
+  Printer,
+  RefreshCw,
+  Store,
+  UnlockKeyhole,
+} from "lucide-react";
 import { toast } from "sonner";
 
 function fechaHora(fecha: string) {
@@ -26,9 +34,317 @@ function fechaHora(fecha: string) {
   });
 }
 
+function horaCorta(fecha: string) {
+  return new Date(fecha).toLocaleTimeString("es-MX", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+const redondear = (valor: number) => Math.round(valor * 100) / 100;
+
+type ResumenFormaPago = {
+  operaciones: number;
+  ventas: number;
+  propinas: number;
+};
+
+type CorteCaja = {
+  sucursal: string;
+  direccion: string;
+  terminal: string;
+  abiertoEn: string;
+  cerradoEn: string;
+  abiertoPor: string;
+  cerradoPor: string;
+  fondoInicial: number;
+  efectivoContado: number;
+  notas: string;
+  ventaTotal: number;
+  ventaNeta: number;
+  impuestos: number;
+  propinas: number;
+  ingresosTotales: number;
+  saldoFinalEstimado: number;
+  efectivoTotalEstimado: number;
+  diferenciaEfectivo: number;
+  formas: Record<Pedido["metodoPago"], ResumenFormaPago>;
+  tiposOrden: Record<Pedido["canal"], { operaciones: number; ventas: number }>;
+  cuentasIniciadas: number;
+  cuentasCerradas: number;
+  cuentasPendientes: number;
+  comensales: number;
+  cuentaPromedio: number;
+};
+
+function crearCorte({
+  caja,
+  pedidos,
+  direccion,
+  efectivoContado,
+  notas,
+  cerradoPor,
+}: {
+  caja: CajaActual;
+  pedidos: Pedido[];
+  direccion: string;
+  efectivoContado: number;
+  notas: string;
+  cerradoPor: string;
+}): CorteCaja {
+  const formas: CorteCaja["formas"] = {
+    Efectivo: { operaciones: 0, ventas: 0, propinas: 0 },
+    Tarjeta: { operaciones: 0, ventas: 0, propinas: 0 },
+    Transferencia: { operaciones: 0, ventas: 0, propinas: 0 },
+  };
+  const tiposOrden: CorteCaja["tiposOrden"] = {
+    "Para llevar": { operaciones: 0, ventas: 0 },
+    "A mesa": { operaciones: 0, ventas: 0 },
+    "Para recoger": { operaciones: 0, ventas: 0 },
+  };
+  const ventasDeCaja = pedidos.filter((pedido) => pedido.cajaId === caja.id);
+
+  for (const pedido of ventasDeCaja) {
+    const forma = formas[pedido.metodoPago];
+    forma.operaciones += 1;
+    forma.ventas += pedido.total;
+    forma.propinas += pedido.propina ?? 0;
+    const tipo = tiposOrden[pedido.canal];
+    tipo.operaciones += 1;
+    tipo.ventas += pedido.total;
+  }
+
+  const ventaNeta = redondear(ventasDeCaja.reduce((total, pedido) => total + pedido.subtotal, 0));
+  const impuestos = redondear(ventasDeCaja.reduce((total, pedido) => total + pedido.iva, 0));
+  const ventaTotal = redondear(ventasDeCaja.reduce((total, pedido) => total + pedido.total, 0));
+  const propinas = redondear(
+    ventasDeCaja.reduce((total, pedido) => total + (pedido.propina ?? 0), 0),
+  );
+  const ingresosTotales = redondear(ventaTotal + propinas);
+  const efectivoTotalEstimado = redondear(
+    caja.fondoInicial + formas.Efectivo.ventas + formas.Efectivo.propinas,
+  );
+
+  for (const forma of Object.values(formas)) {
+    forma.ventas = redondear(forma.ventas);
+    forma.propinas = redondear(forma.propinas);
+  }
+  for (const tipo of Object.values(tiposOrden)) tipo.ventas = redondear(tipo.ventas);
+  const cuentasIniciadas = ventasDeCaja.length;
+  const cuentasCerradas = ventasDeCaja.filter((pedido) => pedido.estado === "Entregado").length;
+  const comensales = ventasDeCaja.reduce((total, pedido) => total + (pedido.comensales ?? 1), 0);
+
+  return {
+    sucursal: caja.sucursalNombre,
+    direccion,
+    terminal: caja.terminalNombre,
+    abiertoEn: caja.abiertoEn,
+    cerradoEn: new Date().toISOString(),
+    abiertoPor: caja.abiertoPorNombre,
+    cerradoPor,
+    fondoInicial: caja.fondoInicial,
+    efectivoContado,
+    notas: notas.trim(),
+    ventaTotal,
+    ventaNeta,
+    impuestos,
+    propinas,
+    ingresosTotales,
+    saldoFinalEstimado: redondear(caja.fondoInicial + ingresosTotales),
+    efectivoTotalEstimado,
+    diferenciaEfectivo: redondear(efectivoContado - efectivoTotalEstimado),
+    formas,
+    tiposOrden,
+    cuentasIniciadas,
+    cuentasCerradas,
+    cuentasPendientes: cuentasIniciadas - cuentasCerradas,
+    comensales,
+    cuentaPromedio: cuentasIniciadas > 0 ? redondear(ventaTotal / cuentasIniciadas) : 0,
+  };
+}
+
+function FilaCorte({
+  etiqueta,
+  valor,
+  fuerte = false,
+}: {
+  etiqueta: string;
+  valor: number;
+  fuerte?: boolean;
+}) {
+  return (
+    <div className={`flex justify-between gap-3 ${fuerte ? "font-bold" : ""}`}>
+      <span>{etiqueta}</span>
+      <span className="shrink-0">{mxnExacto(valor)}</span>
+    </div>
+  );
+}
+
+function TicketCorteCaja({ corte }: { corte: CorteCaja }) {
+  const formas: { nombre: string; resumen: ResumenFormaPago }[] = [
+    { nombre: "Efectivo", resumen: corte.formas.Efectivo },
+    { nombre: "Tarjetas", resumen: corte.formas.Tarjeta },
+    { nombre: "Transferencias", resumen: corte.formas.Transferencia },
+  ];
+  const totalOperaciones = formas.reduce((total, forma) => total + forma.resumen.operaciones, 0);
+  const tiposOrden: { nombre: string; resumen: { operaciones: number; ventas: number } }[] = [
+    { nombre: "Para llevar", resumen: corte.tiposOrden["Para llevar"] },
+    { nombre: "A mesa", resumen: corte.tiposOrden["A mesa"] },
+    { nombre: "Para recoger", resumen: corte.tiposOrden["Para recoger"] },
+  ];
+
+  return (
+    <div className="font-mono text-[12px] leading-snug text-black">
+      <div className="text-center">
+        <p className="text-lg font-bold uppercase">Salúva</p>
+        <p className="font-bold">{corte.sucursal}</p>
+        {corte.direccion ? <p>{corte.direccion}</p> : null}
+        <p className="mt-3 border-y border-dashed border-black py-2 text-sm font-bold uppercase tracking-[0.14em]">
+          Corte de caja
+        </p>
+      </div>
+
+      <div className="my-3 space-y-1">
+        <div className="flex justify-between gap-3">
+          <span>Periodo</span>
+          <span className="text-right">
+            {horaCorta(corte.abiertoEn)} a {horaCorta(corte.cerradoEn)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Fecha</span>
+          <span>{new Date(corte.cerradoEn).toLocaleDateString("es-MX")}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Terminal</span>
+          <span className="text-right">{corte.terminal}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Abrió</span>
+          <span className="text-right">{corte.abiertoPor}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Cerró</span>
+          <span className="text-right">{corte.cerradoPor}</span>
+        </div>
+      </div>
+
+      <section className="border-t border-dashed border-black pt-2">
+        <p className="mb-2 text-center font-bold uppercase">Resumen</p>
+        <div className="space-y-1">
+          <FilaCorte etiqueta="Venta total" valor={corte.ventaTotal} />
+          <FilaCorte etiqueta="Venta neta" valor={corte.ventaNeta} />
+          <FilaCorte etiqueta="Impuestos" valor={corte.impuestos} />
+          <FilaCorte etiqueta="Propinas" valor={corte.propinas} />
+          <FilaCorte etiqueta="Ingresos totales" valor={corte.ingresosTotales} fuerte />
+        </div>
+      </section>
+
+      <section className="mt-3 border-t border-dashed border-black pt-2">
+        <p className="mb-2 text-center font-bold uppercase">Desglose del cierre</p>
+        <div className="space-y-1">
+          <FilaCorte etiqueta="Efectivo inicial" valor={corte.fondoInicial} />
+          <FilaCorte etiqueta="Ventas efectivo" valor={corte.formas.Efectivo.ventas} />
+          <FilaCorte etiqueta="Propinas efectivo" valor={corte.formas.Efectivo.propinas} />
+          <FilaCorte etiqueta="Ventas tarjetas" valor={corte.formas.Tarjeta.ventas} />
+          <FilaCorte etiqueta="Propinas tarjetas" valor={corte.formas.Tarjeta.propinas} />
+          <FilaCorte etiqueta="Ventas transferencias" valor={corte.formas.Transferencia.ventas} />
+          <FilaCorte
+            etiqueta="Propinas transferencias"
+            valor={corte.formas.Transferencia.propinas}
+          />
+          <FilaCorte etiqueta="Saldo final estimado" valor={corte.saldoFinalEstimado} />
+          <FilaCorte
+            etiqueta="Efectivo total estimado"
+            valor={corte.efectivoTotalEstimado}
+            fuerte
+          />
+          <FilaCorte etiqueta="Efectivo contado" valor={corte.efectivoContado} />
+          <FilaCorte etiqueta="Diferencia" valor={corte.diferenciaEfectivo} fuerte />
+        </div>
+      </section>
+
+      <section className="mt-3 border-t border-dashed border-black pt-2">
+        <p className="mb-2 text-center font-bold uppercase">Forma de pago de ventas</p>
+        <div className="space-y-1">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[10px] uppercase">
+            <span>Forma</span>
+            <span>Cant.</span>
+            <span className="text-right">Importe</span>
+          </div>
+          {formas.map((forma) => (
+            <div key={forma.nombre} className="grid grid-cols-[1fr_auto_auto] gap-2">
+              <span>{forma.nombre}</span>
+              <span>{forma.resumen.operaciones}</span>
+              <span className="text-right">{mxnExacto(forma.resumen.ventas)}</span>
+            </div>
+          ))}
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 border-t border-black pt-1 font-bold">
+            <span>Total</span>
+            <span>{totalOperaciones}</span>
+            <span className="text-right">{mxnExacto(corte.ventaTotal)}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-3 border-t border-dashed border-black pt-2">
+        <p className="mb-2 text-center font-bold uppercase">Tipos de orden</p>
+        <div className="space-y-1">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[10px] uppercase">
+            <span>Tipo</span>
+            <span>Cant.</span>
+            <span className="text-right">Importe</span>
+          </div>
+          {tiposOrden.map((tipo) => (
+            <div key={tipo.nombre} className="grid grid-cols-[1fr_auto_auto] gap-2">
+              <span>{tipo.nombre}</span>
+              <span>{tipo.resumen.operaciones}</span>
+              <span className="text-right">{mxnExacto(tipo.resumen.ventas)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-3 border-t border-dashed border-black pt-2">
+        <p className="mb-2 text-center font-bold uppercase">Estadísticas</p>
+        <div className="space-y-1">
+          <div className="flex justify-between gap-3">
+            <span>Cuentas iniciadas</span>
+            <span>{corte.cuentasIniciadas}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Cuentas cerradas</span>
+            <span>{corte.cuentasCerradas}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Cuentas pendientes</span>
+            <span>{corte.cuentasPendientes}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Comensales</span>
+            <span>{corte.comensales}</span>
+          </div>
+          <FilaCorte etiqueta="Cuenta promedio" valor={corte.cuentaPromedio} fuerte />
+        </div>
+      </section>
+
+      {corte.notas ? (
+        <section className="mt-3 border-t border-dashed border-black pt-2">
+          <p className="font-bold uppercase">Notas</p>
+          <p className="mt-1 whitespace-pre-wrap">{corte.notas}</p>
+        </section>
+      ) : null}
+
+      <p className="mt-5 border-t border-dashed border-black pt-3 text-center">
+        Fin del corte de caja
+      </p>
+    </div>
+  );
+}
+
 export function ControlCaja() {
   const { esAdmin, perfil } = useAuth();
-  const { enLinea } = useTienda();
+  const { enLinea, negocio, pedidos, sincronizarAhora } = useTienda();
   const {
     cajaActual,
     terminalAutorizada,
@@ -43,9 +359,9 @@ export function ControlCaja() {
     abrirCaja,
     cerrarCaja,
   } = useCajaTurno();
-  const [dialogo, setDialogo] = useState<"autorizar" | "sucursal" | "abrir" | "cerrar" | null>(
-    null,
-  );
+  const [dialogo, setDialogo] = useState<
+    "autorizar" | "sucursal" | "abrir" | "cerrar" | "corte" | null
+  >(null);
   const [nombreTerminal, setNombreTerminal] = useState("Caja 1");
   const [sucursalId, setSucursalId] = useState("");
   const [nuevaSucursal, setNuevaSucursal] = useState("");
@@ -53,6 +369,7 @@ export function ControlCaja() {
   const [fondoInicial, setFondoInicial] = useState("0");
   const [efectivoContado, setEfectivoContado] = useState("");
   const [notas, setNotas] = useState("");
+  const [corteCerrado, setCorteCerrado] = useState<CorteCaja | null>(null);
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
@@ -114,17 +431,42 @@ export function ControlCaja() {
     );
   };
 
-  const confirmarCierre = (evento: FormEvent) => {
+  const confirmarCierre = async (evento: FormEvent) => {
     evento.preventDefault();
     const efectivo = Number(efectivoContado);
     if (!Number.isFinite(efectivo) || efectivo < 0) {
       toast.error("Ingresa el efectivo contado al cierre");
       return;
     }
-    void ejecutar(
-      () => cerrarCaja(Math.round(efectivo * 100) / 100, notas),
-      "Caja cerrada correctamente",
-    );
+    if (!cajaActual) {
+      toast.error("No hay una caja abierta para cerrar");
+      return;
+    }
+
+    setGuardando(true);
+    try {
+      await sincronizarAhora();
+      const efectivoRedondeado = redondear(efectivo);
+      const sucursal = sucursales.find((item) => item.id === cajaActual.sucursalId);
+      const corte = crearCorte({
+        caja: cajaActual,
+        pedidos,
+        direccion: sucursal?.direccion || negocio.direccion,
+        efectivoContado: efectivoRedondeado,
+        notas,
+        cerradoPor: perfil?.nombre ?? "Personal Salúva",
+      });
+      await cerrarCaja(efectivoRedondeado, notas);
+      setCorteCerrado(corte);
+      setDialogo("corte");
+      setEfectivoContado("");
+      setNotas("");
+      toast.success("Caja cerrada. El corte está listo para imprimir");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No fue posible cerrar la caja");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
@@ -422,6 +764,50 @@ export function ControlCaja() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={dialogo === "corte" && corteCerrado !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) {
+            setDialogo(null);
+            setCorteCerrado(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vista previa del corte de caja</DialogTitle>
+            <DialogDescription>
+              Revisa el resumen del turno antes de imprimirlo en la impresora de tickets.
+            </DialogDescription>
+          </DialogHeader>
+          {corteCerrado ? (
+            <div className="rounded-xl border border-border bg-white p-5 shadow-inner">
+              <TicketCorteCaja corte={corteCerrado} />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogo(null);
+                setCorteCerrado(null);
+              }}
+            >
+              Listo
+            </Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="mr-1.5 h-4 w-4" /> Imprimir corte
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {corteCerrado ? (
+        <div className="preticket-print">
+          <TicketCorteCaja corte={corteCerrado} />
+        </div>
+      ) : null}
     </>
   );
 }

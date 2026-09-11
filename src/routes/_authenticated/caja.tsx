@@ -76,6 +76,7 @@ function DetalleTicket({
   propina = 0,
   montoRecibido = 0,
   cambio = 0,
+  comensales,
 }: {
   referencia: string;
   fecha: string;
@@ -98,6 +99,7 @@ function DetalleTicket({
   propina?: number;
   montoRecibido?: number;
   cambio?: number;
+  comensales: number;
 }) {
   const fechaLocal = new Date(fecha);
   const montoCobrado = total + propina;
@@ -131,7 +133,7 @@ function DetalleTicket({
         </div>
         <div className="flex justify-between gap-3">
           <span>Cliente / mesa</span>
-          <span className="text-right">{cliente.trim() || "Mostrador"}</span>
+          <span className="text-right">{cliente.trim() || "Sin nombre"}</span>
         </div>
         <div className="flex justify-between gap-3">
           <span>Atendió</span>
@@ -140,6 +142,10 @@ function DetalleTicket({
         <div className="flex justify-between gap-3">
           <span>Servicio</span>
           <span>{canal}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Comensales</span>
+          <span>{comensales}</span>
         </div>
       </div>
 
@@ -217,7 +223,8 @@ function Caja() {
   const [busqueda, setBusqueda] = useState("");
   const [items, setItems] = useState<LineaPedido[]>([]);
   const [cliente, setCliente] = useState("");
-  const [canal, setCanal] = useState<Pedido["canal"]>("Mostrador");
+  const [canal, setCanal] = useState<Pedido["canal"]>("A mesa");
+  const [comensalesTexto, setComensalesTexto] = useState("1");
   const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
   const [tocado, setTocado] = useState<string | null>(null);
   const [preTicket, setPreTicket] = useState<{ referencia: string; fecha: string } | null>(null);
@@ -274,7 +281,7 @@ function Caja() {
     setLeche("Entera");
     setExtraShot(false);
     setSinAzucar(false);
-    setParaLlevar(canal === "Para llevar");
+    setParaLlevar(canal !== "A mesa");
     setEnModificadores(p);
   };
 
@@ -340,6 +347,11 @@ function Caja() {
       });
       return;
     }
+    const comensales = Math.floor(Number(comensalesTexto));
+    if (!Number.isFinite(comensales) || comensales < 1 || comensales > 99) {
+      toast.error("Ingresa entre 1 y 99 comensales");
+      return;
+    }
 
     const pedido = crearPedido({
       cliente,
@@ -349,6 +361,7 @@ function Caja() {
       propina,
       montoRecibido,
       cambio,
+      comensales,
     });
     setPreTicket(null);
     setTicketCobrado(pedido);
@@ -364,6 +377,7 @@ function Caja() {
     }
     setItems([]);
     setCliente("");
+    setComensalesTexto("1");
   };
 
   const abrirPreTicket = () => {
@@ -438,13 +452,37 @@ function Caja() {
           </div>
 
           <div className="mt-4 space-y-3">
-            <Input
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              placeholder="Nombre o mesa"
-            />
+            <div className="grid grid-cols-[minmax(0,1fr)_100px] gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="cliente-mesa" className="text-xs text-muted-foreground">
+                  Cliente o mesa
+                </Label>
+                <Input
+                  id="cliente-mesa"
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  placeholder="Nombre o mesa"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="comensales" className="text-xs text-muted-foreground">
+                  Comensales
+                </Label>
+                <Input
+                  id="comensales"
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max="99"
+                  step="1"
+                  value={comensalesTexto}
+                  onChange={(e) => setComensalesTexto(e.target.value)}
+                  placeholder="1"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-3 gap-2">
-              {(["Mostrador", "Para llevar", "App"] as const).map((c) => (
+              {(["A mesa", "Para llevar", "Para recoger"] as const).map((c) => (
                 <button
                   key={c}
                   onClick={() => setCanal(c)}
@@ -808,6 +846,7 @@ function Caja() {
                 iva={iva}
                 total={total}
                 negocio={negocio}
+                comensales={Math.max(1, Math.floor(Number(comensalesTexto) || 1))}
               />
             </div>
           )}
@@ -837,6 +876,7 @@ function Caja() {
             iva={iva}
             total={total}
             negocio={negocio}
+            comensales={Math.max(1, Math.floor(Number(comensalesTexto) || 1))}
           />
         </div>
       )}
@@ -871,6 +911,7 @@ function Caja() {
                 propina={ticketCobrado.propina ?? 0}
                 montoRecibido={ticketCobrado.montoRecibido ?? 0}
                 cambio={ticketCobrado.cambio ?? 0}
+                comensales={ticketCobrado.comensales}
               />
             </div>
           )}
@@ -905,6 +946,7 @@ function Caja() {
             propina={ticketCobrado.propina ?? 0}
             montoRecibido={ticketCobrado.montoRecibido ?? 0}
             cambio={ticketCobrado.cambio ?? 0}
+            comensales={ticketCobrado.comensales}
           />
         </div>
       )}

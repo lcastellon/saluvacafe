@@ -335,7 +335,7 @@ export type Pedido = {
   id: string;
   folio: string;
   cliente: string;
-  canal: "Mostrador" | "Para llevar" | "App";
+  canal: "A mesa" | "Para llevar" | "Para recoger";
   estado: EstadoPedido;
   hora: string;
   items: LineaPedido[];
@@ -347,6 +347,7 @@ export type Pedido = {
   propina?: number;
   montoRecibido?: number;
   cambio?: number;
+  comensales: number;
   creadoEn: string;
   sincronizacion: "pendiente" | "sincronizado";
 };
