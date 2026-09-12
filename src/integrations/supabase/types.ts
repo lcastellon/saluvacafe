@@ -419,6 +419,10 @@ export type Database = {
         Args: { p_fondo_inicial: number; p_token: string }
         Returns: Json
       }
+      ajustar_existencia: {
+        Args: { p_delta: number; p_id: string }
+        Returns: number
+      }
       autorizar_terminal_pos: {
         Args: { p_nombre: string; p_sucursal_id: string; p_token: string }
         Returns: Json
