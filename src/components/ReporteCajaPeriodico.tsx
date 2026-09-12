@@ -140,6 +140,47 @@ function numero(valor: Json | undefined) {
   return Number.isFinite(resultado) ? resultado : 0;
 }
 
+function textoErrorCorte(error: unknown) {
+  if (!error || typeof error !== "object") return "No fue posible generar el corte.";
+
+  const detalle = error as {
+    code?: unknown;
+    message?: unknown;
+    details?: unknown;
+    hint?: unknown;
+  };
+  const partes = [detalle.code, detalle.message, detalle.details, detalle.hint]
+    .filter((parte): parte is string => typeof parte === "string" && parte.trim().length > 0)
+    .map((parte) => parte.trim());
+  const texto = partes.join(" ");
+  const normalizado = texto.toLocaleLowerCase("es-MX");
+
+  if (normalizado.includes("comensales") && normalizado.includes("does not exist")) {
+    return "Falta aplicar la actualización de comensales en Supabase. Aprueba la migración pendiente de reparación de Cortes en Lovable.";
+  }
+  if (
+    detalle.code === "PGRST202" ||
+    (normalizado.includes("reporte_periodo_pos") && normalizado.includes("could not find"))
+  ) {
+    return "Falta activar el cálculo de Cortes imprimibles en Supabase. Aprueba la migración pendiente en Lovable.";
+  }
+  if (normalizado.includes("administrador")) {
+    return "Sólo una cuenta administradora puede generar cortes imprimibles.";
+  }
+  if (
+    normalizado.includes("jwt") ||
+    normalizado.includes("session") ||
+    normalizado.includes("sesión")
+  ) {
+    return "Tu sesión venció. Vuelve a iniciar sesión para generar el corte.";
+  }
+
+  const mensaje = typeof detalle.message === "string" ? detalle.message.trim() : "";
+  return mensaje
+    ? `No fue posible generar el corte: ${mensaje}`
+    : "No fue posible generar el corte.";
+}
+
 function leerResumen(data: Json): ResumenPeriodo {
   const raiz = objeto(data);
   const formas = objeto(raiz["formas"]);
@@ -378,12 +419,15 @@ export function ReporteCajaPeriodico() {
         p_hasta: periodo.fin.toISOString(),
         ...(sucursalId ? { p_sucursal_id: sucursalId } : {}),
       });
-      if (errorRpc) throw errorRpc;
+      if (errorRpc) {
+        console.error("No fue posible generar el corte periódico", errorRpc);
+        throw errorRpc;
+      }
       return leerResumen(respuesta);
     },
   });
 
-  const mensajeError = error instanceof Error ? error.message : "No fue posible generar el corte";
+  const mensajeError = textoErrorCorte(error);
 
   return (
     <>
