@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -33,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/_admin/configuracion")({
 });
 
 function Configuracion() {
-  const { negocio, setNegocio } = useTienda();
+  const { negocio, guardarNegocio, enLinea, cargandoLocal } = useTienda();
   const [form, setForm] = useState(negocio);
   const [imprimir, setImprimir] = useState(true);
   const [alertas, setAlertas] = useState(true);
@@ -42,6 +42,27 @@ function Configuracion() {
   const [confirmarCodigo, setConfirmarCodigo] = useState("");
   const cambiarCodigo = useServerFn(cambiarCodigoPropio);
   const navigate = useNavigate();
+
+  useEffect(() => setForm(negocio), [negocio]);
+
+  const mensajeConfiguracion = (error: unknown) => {
+    if (error instanceof Error) {
+      if (
+        error.message.includes("pos_configuracion") ||
+        error.message.toLowerCase().includes("schema cache")
+      ) {
+        return "Falta aplicar la migración de configuración y notas en Supabase.";
+      }
+      return error.message;
+    }
+    return "No se pudo guardar la configuración";
+  };
+
+  const guardarConfiguracion = useMutation({
+    mutationFn: () => guardarNegocio(form),
+    onSuccess: () => toast.success("Configuración guardada"),
+    onError: (error) => toast.error(mensajeConfiguracion(error)),
+  });
 
   const cambioCodigo = useMutation({
     mutationFn: () => cambiarCodigo({ data: { codigoActual, nuevoCodigo, confirmarCodigo } }),
@@ -185,12 +206,10 @@ function Configuracion() {
 
       <div className="mt-5 flex flex-wrap gap-2">
         <Button
-          onClick={() => {
-            setNegocio(form);
-            toast.success("Configuración guardada");
-          }}
+          onClick={() => guardarConfiguracion.mutate()}
+          disabled={!enLinea || cargandoLocal || guardarConfiguracion.isPending}
         >
-          Guardar cambios
+          {guardarConfiguracion.isPending ? "Guardando…" : "Guardar cambios"}
         </Button>
         <Button variant="outline" onClick={() => setForm(negocio)}>
           Descartar

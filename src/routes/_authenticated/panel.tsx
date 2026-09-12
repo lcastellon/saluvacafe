@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/AppShell";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useTienda } from "@/lib/tienda";
 import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn } from "@/data/saluva";
@@ -89,57 +91,218 @@ type NotaTurno = {
   texto: string;
   color: number;
   hecha: boolean;
+  creadaEn: string;
+  actualizadaEn: string;
 };
 
+type NotaTurnoRemota = Tables<"pos_notas_turno">;
+
 const NOTAS_KEY = "saluva-notas-turno-v1";
+const UUID_NOTA = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const coloresNota = ["bg-[#fff1a8]", "bg-[#ffd8cf]", "bg-[#dcefe2]", "bg-[#e4e7ef]"];
 const inclinacionesNota = ["-rotate-[0.8deg]", "rotate-[0.6deg]", "-rotate-[0.35deg]", "rotate-1"];
+
+function crearIdNota() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (caracter) => {
+    const aleatorio = Math.floor(Math.random() * 16);
+    const valor = caracter === "x" ? aleatorio : (aleatorio & 0x3) | 0x8;
+    return valor.toString(16);
+  });
+}
 
 function cargarNotas(): NotaTurno[] {
   if (typeof window === "undefined") return [];
   try {
-    const guardadas = JSON.parse(window.localStorage.getItem(NOTAS_KEY) ?? "[]");
-    return Array.isArray(guardadas) ? guardadas : [];
+    const guardadas = JSON.parse(window.localStorage.getItem(NOTAS_KEY) ?? "[]") as unknown;
+    if (!Array.isArray(guardadas)) return [];
+    const ahora = new Date().toISOString();
+    return guardadas.flatMap((item) => {
+      if (!item || typeof item !== "object" || !("id" in item) || !("texto" in item)) return [];
+      const nota = item as Partial<NotaTurno>;
+      if (typeof nota.id !== "string" || typeof nota.texto !== "string") return [];
+      return [
+        {
+          id: UUID_NOTA.test(nota.id) ? nota.id : crearIdNota(),
+          texto: nota.texto,
+          color: Number.isFinite(nota.color) ? Number(nota.color) : 0,
+          hecha: nota.hecha === true,
+          creadaEn: typeof nota.creadaEn === "string" ? nota.creadaEn : ahora,
+          actualizadaEn: typeof nota.actualizadaEn === "string" ? nota.actualizadaEn : ahora,
+        },
+      ];
+    });
   } catch {
     return [];
   }
 }
 
+function notaDesdeNube(nota: NotaTurnoRemota): NotaTurno {
+  return {
+    id: nota.id,
+    texto: nota.texto,
+    color: nota.color,
+    hecha: nota.hecha,
+    creadaEn: nota.creada_en,
+    actualizadaEn: nota.actualizada_en,
+  };
+}
+
+function notaParaNube(nota: NotaTurno) {
+  return {
+    id: nota.id,
+    texto: nota.texto.trim(),
+    color: nota.color,
+    hecha: nota.hecha,
+    creada_en: nota.creadaEn,
+    actualizada_en: nota.actualizadaEn,
+  };
+}
+
+function fusionarNotas(locales: NotaTurno[], remotas: NotaTurno[]) {
+  const porId = new Map(remotas.map((nota) => [nota.id, nota]));
+  const pendientes: NotaTurno[] = [];
+
+  for (const local of locales) {
+    const remota = porId.get(local.id);
+    if (!remota || new Date(local.actualizadaEn) > new Date(remota.actualizadaEn)) {
+      porId.set(local.id, local);
+      pendientes.push(local);
+    }
+  }
+
+  return {
+    notas: [...porId.values()].sort(
+      (a, b) => new Date(b.creadaEn).getTime() - new Date(a.creadaEn).getTime(),
+    ),
+    pendientes,
+  };
+}
+
 function TableroNotas() {
-  const [notas, setNotas] = useState<NotaTurno[]>(cargarNotas);
+  const { enLinea } = useTienda();
+  const [notas, setNotas] = useState<NotaTurno[]>([]);
+  const [notasCargadas, setNotasCargadas] = useState(false);
+  const [estadoGuardado, setEstadoGuardado] = useState<"local" | "sincronizando" | "nube">("local");
   const [texto, setTexto] = useState("");
 
   useEffect(() => {
+    let activo = true;
+    const locales = cargarNotas();
+    setNotas(locales);
+    setNotasCargadas(true);
+    if (!enLinea) {
+      setEstadoGuardado("local");
+      return () => {
+        activo = false;
+      };
+    }
+
+    setEstadoGuardado("sincronizando");
+    void supabase
+      .from("pos_notas_turno")
+      .select("id, texto, color, hecha, creada_por, creada_en, actualizada_en")
+      .order("creada_en", { ascending: false })
+      .then(async ({ data, error }) => {
+        if (error) throw error;
+        const fusion = fusionarNotas(locales, (data ?? []).map(notaDesdeNube));
+        if (fusion.pendientes.length > 0) {
+          const { error: errorPendientes } = await supabase
+            .from("pos_notas_turno")
+            .upsert(fusion.pendientes.map(notaParaNube));
+          if (errorPendientes) throw errorPendientes;
+        }
+        if (!activo) return;
+        setNotas(fusion.notas);
+        setEstadoGuardado("nube");
+      })
+      .catch((error) => {
+        if (!activo) return;
+        console.warn("Las notas continuarán guardadas localmente", error);
+        setEstadoGuardado("local");
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [enLinea]);
+
+  useEffect(() => {
+    if (!notasCargadas) return;
     try {
       window.localStorage.setItem(NOTAS_KEY, JSON.stringify(notas));
     } catch {
       // Las notas siguen disponibles durante la sesión si el navegador bloquea localStorage.
     }
-  }, [notas]);
+  }, [notas, notasCargadas]);
+
+  const guardarEnNube = async (nota: NotaTurno) => {
+    if (!enLinea) {
+      setEstadoGuardado("local");
+      return;
+    }
+    setEstadoGuardado("sincronizando");
+    const { error } = await supabase.from("pos_notas_turno").upsert(notaParaNube(nota));
+    if (error) {
+      console.warn("La nota continuará guardada localmente", error);
+      setEstadoGuardado("local");
+      return;
+    }
+    setEstadoGuardado("nube");
+  };
 
   const agregarNota = (event: FormEvent) => {
     event.preventDefault();
     const contenido = texto.trim();
     if (!contenido) return;
-    setNotas((actuales) => [
-      {
-        id: globalThis.crypto?.randomUUID?.() ?? `nota-${Date.now()}`,
-        texto: contenido,
-        color: actuales.length % coloresNota.length,
-        hecha: false,
-      },
-      ...actuales,
-    ]);
+    const ahora = new Date().toISOString();
+    const nueva: NotaTurno = {
+      id: crearIdNota(),
+      texto: contenido,
+      color: notas.length % coloresNota.length,
+      hecha: false,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    };
+    setNotas((actuales) => [nueva, ...actuales]);
     setTexto("");
+    void guardarEnNube(nueva);
   };
 
   const actualizarNota = (id: string, cambio: Partial<NotaTurno>) =>
     setNotas((actuales) =>
-      actuales.map((nota) => (nota.id === id ? { ...nota, ...cambio } : nota)),
+      actuales.map((nota) =>
+        nota.id === id ? { ...nota, ...cambio, actualizadaEn: new Date().toISOString() } : nota,
+      ),
     );
 
-  const eliminarNota = (id: string) =>
+  const alternarNota = (nota: NotaTurno) => {
+    const siguiente = {
+      ...nota,
+      hecha: !nota.hecha,
+      actualizadaEn: new Date().toISOString(),
+    };
+    setNotas((actuales) => actuales.map((item) => (item.id === nota.id ? siguiente : item)));
+    void guardarEnNube(siguiente);
+  };
+
+  const eliminarNota = (id: string) => {
     setNotas((actuales) => actuales.filter((nota) => nota.id !== id));
+    if (!enLinea) {
+      setEstadoGuardado("local");
+      return;
+    }
+    void supabase
+      .from("pos_notas_turno")
+      .delete()
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) {
+          console.warn("No fue posible eliminar la nota compartida", error);
+          setEstadoGuardado("local");
+        }
+      });
+  };
 
   return (
     <section className="surface mt-6 overflow-hidden p-5">
@@ -149,7 +312,11 @@ function TableroNotas() {
             <StickyNote className="h-5 w-5 text-primary" /> Notas del turno
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Recordatorios guardados en este dispositivo, incluso sin conexión.
+            {estadoGuardado === "nube"
+              ? "Guardadas para todo el equipo y disponibles al volver a entrar."
+              : estadoGuardado === "sincronizando"
+                ? "Sincronizando notas…"
+                : "Guardadas en este dispositivo; se sincronizarán al recuperar conexión."}
           </p>
         </div>
         <Badge variant="secondary">
@@ -185,6 +352,7 @@ function TableroNotas() {
               <textarea
                 value={nota.texto}
                 onChange={(event) => actualizarNota(nota.id, { texto: event.target.value })}
+                onBlur={() => void guardarEnNube(nota)}
                 maxLength={180}
                 aria-label="Contenido de la nota"
                 className={`min-h-24 w-full resize-none bg-transparent text-sm leading-relaxed outline-none ${
@@ -194,7 +362,7 @@ function TableroNotas() {
               <div className="mt-1 flex items-center justify-between border-t border-black/10 pt-2">
                 <button
                   type="button"
-                  onClick={() => actualizarNota(nota.id, { hecha: !nota.hecha })}
+                  onClick={() => alternarNota(nota)}
                   className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/55 hover:text-black"
                 >
                   <span

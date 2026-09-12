@@ -16,7 +16,7 @@ import {
   type Producto,
 } from "@/data/saluva";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { useCajaTurno } from "@/lib/caja-turno";
 import {
@@ -38,7 +38,7 @@ type Ctx = {
   cargandoLocal: boolean;
   pendientesSincronizar: number;
   sincronizarAhora: () => Promise<void>;
-  setNegocio: (n: Negocio) => void;
+  guardarNegocio: (n: Negocio) => Promise<void>;
   toggleProducto: (id: string) => void;
   actualizarPrecio: (id: string, precio: number) => void;
   crearProducto: (p: Omit<Producto, "id">) => void;
@@ -113,6 +113,21 @@ function ejecutarRpc(nombre: string, argumentos?: Record<string, Json>): Promise
   return cliente.rpc(nombre, argumentos);
 }
 
+function negocioDesdeNube(
+  registro: Database["public"]["Tables"]["pos_configuracion"]["Row"],
+): Negocio {
+  return {
+    nombre: registro.nombre,
+    sucursal: registro.sucursal,
+    direccion: registro.direccion,
+    telefono: registro.telefono,
+    horario: registro.horario,
+    iva: Number(registro.iva),
+    propinaSugerida: Number(registro.propina_sugerida),
+    moneda: registro.moneda,
+  };
+}
+
 export function TiendaProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const { cajaActual } = useCajaTurno();
@@ -164,6 +179,68 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       console.warn("No fue posible guardar los datos locales", error);
     });
   }, [cargandoLocal, negocio, pedidos, productos]);
+
+  useEffect(() => {
+    if (cargandoLocal || !enLinea || !session) return;
+    let activo = true;
+
+    void supabase
+      .from("pos_configuracion")
+      .select(
+        "nombre, sucursal, direccion, telefono, horario, iva, propina_sugerida, moneda, id, actualizado_por, actualizado_en",
+      )
+      .eq("id", "negocio")
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!activo) return;
+        if (error) {
+          console.warn("No fue posible cargar la configuración compartida", error);
+          return;
+        }
+        if (data) setNegocio(negocioDesdeNube(data));
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [cargandoLocal, enLinea, session]);
+
+  const guardarNegocio = useCallback(
+    async (siguiente: Negocio) => {
+      if (!session) throw new Error("Inicia sesión para guardar la configuración.");
+      if (!navigator.onLine) {
+        throw new Error("Necesitas conexión para guardar la configuración del negocio.");
+      }
+
+      const { error } = await supabase.from("pos_configuracion").upsert({
+        id: "negocio",
+        nombre: siguiente.nombre.trim(),
+        sucursal: siguiente.sucursal.trim(),
+        direccion: siguiente.direccion.trim(),
+        telefono: siguiente.telefono.trim(),
+        horario: siguiente.horario.trim(),
+        iva: siguiente.iva,
+        propina_sugerida: siguiente.propinaSugerida,
+        moneda: siguiente.moneda.trim(),
+        actualizado_por: session.user.id,
+        actualizado_en: new Date().toISOString(),
+      });
+      if (error) throw error;
+
+      const normalizado: Negocio = {
+        ...siguiente,
+        nombre: siguiente.nombre.trim(),
+        sucursal: siguiente.sucursal.trim(),
+        direccion: siguiente.direccion.trim(),
+        telefono: siguiente.telefono.trim(),
+        horario: siguiente.horario.trim(),
+        moneda: siguiente.moneda.trim(),
+      };
+      setNegocio(normalizado);
+      await guardarSnapshot({ productos, pedidos, negocio: normalizado });
+    },
+    [pedidos, productos, session],
+  );
 
   const sincronizarAhora = useCallback(async () => {
     if (!navigator.onLine || !session || sincronizando.current) return;
@@ -228,7 +305,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       cargandoLocal,
       pendientesSincronizar,
       sincronizarAhora,
-      setNegocio,
+      guardarNegocio,
       toggleProducto: (id) =>
         setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, activo: !p.activo } : p))),
       actualizarPrecio: (id, precio) =>
@@ -295,6 +372,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       pendientesSincronizar,
       ponerEnCola,
       productos,
+      guardarNegocio,
       sincronizarAhora,
     ],
   );
