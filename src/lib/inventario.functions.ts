@@ -126,25 +126,3 @@ export const eliminarInsumo = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-
-export const ajustarExistencia = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; delta: number }) => {
-    if (!input.id) throw new Error("El id es obligatorio");
-    const delta = Number(input.delta);
-    if (Number.isNaN(delta)) throw new Error("El delta debe ser un número");
-    return { id: input.id, delta };
-  })
-  .handler(async ({ data, context }) => {
-    const { data: existencia, error: errorAjuste } = await context.supabase.rpc(
-      "ajustar_existencia",
-      {
-        p_id: data.id,
-        p_delta: data.delta,
-      },
-    );
-    if (errorAjuste) throw new Error(errorAjuste.message);
-    if (existencia === null) throw new Error("No se recibió la existencia actualizada");
-
-    return { id: data.id, existencia: Number(existencia) };
-  });

@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
 import { useTienda } from "@/lib/tienda";
 import { cargarInventario, guardarInventario, type InsumoLocal } from "@/lib/offline-db";
+import { supabase } from "@/integrations/supabase/client";
 import { mxn } from "@/data/saluva";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,6 @@ import {
 import { Minus, Plus, Pencil, Trash2, Package } from "lucide-react";
 import { DoodleCaja } from "@/components/doodles";
 import {
-  ajustarExistencia,
   crearInsumo,
   actualizarInsumo,
   eliminarInsumo,
@@ -71,7 +71,6 @@ function Inventario() {
   const crear = useServerFn(crearInsumo);
   const actualizar = useServerFn(actualizarInsumo);
   const eliminar = useServerFn(eliminarInsumo);
-  const ajustar = useServerFn(ajustarExistencia);
 
   const { data, isLoading } = useQuery({
     queryKey: ["insumos"],
@@ -186,7 +185,32 @@ function Inventario() {
   });
 
   const mAjustar = useMutation({
-    mutationFn: (v: { id: string; delta: number }) => ajustar({ data: v }),
+    mutationFn: async ({ id, delta }: { id: string; delta: number }) => {
+      const { data: existencia, error } = await supabase.rpc("ajustar_existencia", {
+        p_id: id,
+        p_delta: delta,
+      });
+      if (error) {
+        const mensaje = error.message.toLocaleLowerCase("es-MX");
+        if (error.code === "PGRST202" || mensaje.includes("could not find")) {
+          throw new Error(
+            "Falta activar el ajuste de inventario en Supabase. Aplica la migración pendiente desde Lovable.",
+          );
+        }
+        if (mensaje.includes("sesión") || mensaje.includes("session") || mensaje.includes("jwt")) {
+          throw new Error(
+            "Tu sesión venció. Vuelve a iniciar sesión para modificar el inventario.",
+          );
+        }
+        if (mensaje.includes("perfil no está activo")) {
+          throw new Error("Tu usuario no está activo para modificar el inventario.");
+        }
+        throw new Error(`No se pudo actualizar la cantidad: ${error.message}`);
+      }
+      if (existencia === null) throw new Error("Supabase no devolvió la cantidad actualizada.");
+
+      return { id, existencia: Number(existencia) };
+    },
     onMutate: async ({ id, delta }) => {
       await qc.cancelQueries({ queryKey: ["insumos"] });
       const anteriores = qc.getQueryData<InsumoLocal[]>(["insumos"]) ?? inventarioLocal;
