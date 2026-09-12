@@ -10,7 +10,7 @@ const password = (codigo: string) => `slv-${codigo}`;
 function codigoAleatorio() {
   const valor = new Uint32Array(1);
   globalThis.crypto.getRandomValues(valor);
-  return String(100000 + (valor[0] % 900000));
+  return String(100000 + ((valor[0] ?? 0) % 900000));
 }
 
 async function exigirAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
