@@ -34,6 +34,7 @@ const STORE_ESTADO = "estado";
 const STORE_PENDIENTES = "ventas-pendientes";
 const SNAPSHOT_KEY = "tienda";
 const INVENTARIO_KEY = "inventario";
+const TERMINAL_TOKEN_KEY = "terminal-token";
 
 function abrirDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -93,6 +94,27 @@ export async function guardarInventario(insumos: InsumoLocal[]): Promise<void> {
   try {
     const tx = db.transaction(STORE_ESTADO, "readwrite");
     await esperar(tx.objectStore(STORE_ESTADO).put(insumos, INVENTARIO_KEY));
+  } finally {
+    db.close();
+  }
+}
+
+export async function cargarTokenTerminal(): Promise<string | null> {
+  const db = await abrirDb();
+  try {
+    const tx = db.transaction(STORE_ESTADO, "readonly");
+    const token = await esperar(tx.objectStore(STORE_ESTADO).get(TERMINAL_TOKEN_KEY));
+    return typeof token === "string" ? token : null;
+  } finally {
+    db.close();
+  }
+}
+
+export async function guardarTokenTerminal(token: string): Promise<void> {
+  const db = await abrirDb();
+  try {
+    const tx = db.transaction(STORE_ESTADO, "readwrite");
+    await esperar(tx.objectStore(STORE_ESTADO).put(token, TERMINAL_TOKEN_KEY));
   } finally {
     db.close();
   }

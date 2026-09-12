@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { cargarTokenTerminal, guardarTokenTerminal } from "@/lib/offline-db";
 
 export type CajaActual = {
   id: string;
@@ -49,6 +50,8 @@ type Ctx = EstadoCaja & {
 
 const TOKEN_KEY = "saluva-terminal-token-v1";
 const CACHE_KEY = "saluva-estado-caja-v1";
+let tokenTerminalMemoria: string | null = null;
+let cargaTokenTerminal: Promise<string> | null = null;
 const estadoInicial: EstadoCaja = {
   terminalAutorizada: false,
   terminalNombre: null,
@@ -67,13 +70,55 @@ function ejecutarRpc(nombre: string, argumentos?: Record<string, Json>): Promise
   return cliente.rpc(nombre, argumentos);
 }
 
-function obtenerTokenTerminal() {
-  let token = window.localStorage.getItem(TOKEN_KEY);
-  if (!token) {
-    token = globalThis.crypto?.randomUUID?.() ?? `terminal-${Date.now()}-${Math.random()}`;
-    window.localStorage.setItem(TOKEN_KEY, token);
+function esTokenTerminalValido(token: string | null): token is string {
+  return typeof token === "string" && token.length >= 20;
+}
+
+async function obtenerTokenTerminal(): Promise<string> {
+  if (esTokenTerminalValido(tokenTerminalMemoria)) return tokenTerminalMemoria;
+  if (cargaTokenTerminal) return cargaTokenTerminal;
+
+  cargaTokenTerminal = (async () => {
+    let tokenLocal: string | null = null;
+    let tokenIndexedDb: string | null = null;
+
+    try {
+      tokenLocal = window.localStorage.getItem(TOKEN_KEY);
+    } catch {
+      // IndexedDB queda como respaldo si el navegador bloquea localStorage.
+    }
+
+    try {
+      tokenIndexedDb = await cargarTokenTerminal();
+    } catch {
+      // Se genera una identidad nueva sólo si ninguno de los almacenes está disponible.
+    }
+
+    const token = esTokenTerminalValido(tokenLocal)
+      ? tokenLocal
+      : esTokenTerminalValido(tokenIndexedDb)
+        ? tokenIndexedDb
+        : (globalThis.crypto?.randomUUID?.() ?? `terminal-${Date.now()}-${Math.random()}`);
+
+    tokenTerminalMemoria = token;
+    try {
+      window.localStorage.setItem(TOKEN_KEY, token);
+    } catch {
+      // La copia en memoria e IndexedDB mantienen la identidad durante la sesión.
+    }
+    try {
+      await guardarTokenTerminal(token);
+    } catch {
+      // localStorage sigue siendo suficiente en navegadores sin IndexedDB disponible.
+    }
+    return token;
+  })();
+
+  try {
+    return await cargaTokenTerminal;
+  } finally {
+    cargaTokenTerminal = null;
   }
-  return token;
 }
 
 function leerCache(): EstadoCaja {
@@ -169,15 +214,19 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
 
     setCargandoCaja(true);
     try {
+      const token = await obtenerTokenTerminal();
       const [estadoRemoto, sucursalesRemotas] = await Promise.all([
-        ejecutarRpc("estado_terminal_caja", { p_token: obtenerTokenTerminal() }),
+        ejecutarRpc("estado_terminal_caja", { p_token: token }),
         esAdmin ? ejecutarRpc("listar_sucursales_pos") : Promise.resolve(null),
       ]);
       if (estadoRemoto.error) throw estadoRemoto.error;
-      if (sucursalesRemotas?.error) throw sucursalesRemotas.error;
       aplicarEstado(interpretarEstado(estadoRemoto.data));
-      if (sucursalesRemotas) setSucursales(interpretarSucursales(sucursalesRemotas.data));
-      setErrorCaja(null);
+      if (sucursalesRemotas?.error) {
+        setErrorCaja("La terminal está verificada, pero no fue posible cargar las sucursales.");
+      } else {
+        if (sucursalesRemotas) setSucursales(interpretarSucursales(sucursalesRemotas.data));
+        setErrorCaja(null);
+      }
     } catch (error) {
       setEstado(leerCache());
       setErrorCaja(mensajeDeError(error));
@@ -202,8 +251,9 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
     async (nombre: string, argumentos: Record<string, Json>) => {
       if (!navigator.onLine)
         throw new Error("Necesitas conexión para cambiar el estado de la caja.");
+      const token = await obtenerTokenTerminal();
       const { data, error } = await ejecutarRpc(nombre, {
-        p_token: obtenerTokenTerminal(),
+        p_token: token,
         ...argumentos,
       });
       if (error) throw new Error(mensajeDeError(error));
