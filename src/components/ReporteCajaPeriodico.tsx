@@ -18,7 +18,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { useCajaTurno } from "@/lib/caja-turno";
 import { useTienda } from "@/lib/tienda";
 
-type TipoPeriodo = "semanal" | "mensual";
+type TipoPeriodo = "diario" | "semanal" | "mensual" | "personalizado";
 type FormaPago = "Efectivo" | "Tarjeta" | "Transferencia";
 type TipoOrden = "A mesa" | "Para llevar" | "Para recoger";
 
@@ -56,6 +56,12 @@ type Periodo = {
 
 const formasPago: FormaPago[] = ["Efectivo", "Tarjeta", "Transferencia"];
 const tiposOrden: TipoOrden[] = ["Para llevar", "A mesa", "Para recoger"];
+const nombrePeriodo: Record<TipoPeriodo, string> = {
+  diario: "del día",
+  semanal: "semanal",
+  mensual: "mensual",
+  personalizado: "personalizado",
+};
 
 function fechaLocalActual() {
   const ahora = new Date();
@@ -65,27 +71,45 @@ function fechaLocalActual() {
   return `${anio}-${mes}-${dia}`;
 }
 
-function calcularPeriodo(fecha: string, tipo: TipoPeriodo): Periodo | null {
-  const partes = fecha.split("-").map(Number);
+function fechaDesdeTexto(valor: string) {
+  const partes = valor.split("-").map(Number);
   if (partes.length !== 3 || partes.some((parte) => !Number.isFinite(parte))) return null;
 
   const [anio, mes, dia] = partes;
-  const referencia = new Date(anio, mes - 1, dia, 12);
-  if (Number.isNaN(referencia.getTime())) return null;
+  const fecha = new Date(anio, mes - 1, dia);
+  if (fecha.getFullYear() !== anio || fecha.getMonth() !== mes - 1 || fecha.getDate() !== dia) {
+    return null;
+  }
+  return fecha;
+}
+
+function calcularPeriodo(fecha: string, tipo: TipoPeriodo, fechaHasta: string): Periodo | null {
+  const referencia = fechaDesdeTexto(fecha);
+  if (!referencia) return null;
 
   let inicio: Date;
   let fin: Date;
 
-  if (tipo === "semanal") {
+  if (tipo === "diario") {
+    inicio = new Date(referencia);
+    fin = new Date(inicio);
+    fin.setDate(fin.getDate() + 1);
+  } else if (tipo === "semanal") {
     inicio = new Date(referencia);
     const desplazamiento = (inicio.getDay() + 6) % 7;
     inicio.setDate(inicio.getDate() - desplazamiento);
     inicio.setHours(0, 0, 0, 0);
     fin = new Date(inicio);
     fin.setDate(fin.getDate() + 7);
+  } else if (tipo === "mensual") {
+    inicio = new Date(referencia.getFullYear(), referencia.getMonth(), 1);
+    fin = new Date(referencia.getFullYear(), referencia.getMonth() + 1, 1);
   } else {
-    inicio = new Date(anio, mes - 1, 1);
-    fin = new Date(anio, mes, 1);
+    const ultimoDiaSolicitado = fechaDesdeTexto(fechaHasta);
+    if (!ultimoDiaSolicitado || ultimoDiaSolicitado < referencia) return null;
+    inicio = new Date(referencia);
+    fin = new Date(ultimoDiaSolicitado);
+    fin.setDate(fin.getDate() + 1);
   }
 
   const ultimoDia = new Date(fin);
@@ -99,7 +123,10 @@ function calcularPeriodo(fecha: string, tipo: TipoPeriodo): Periodo | null {
   return {
     inicio,
     fin,
-    etiqueta: `${formato.format(inicio)} al ${formato.format(ultimoDia)}`,
+    etiqueta:
+      tipo === "diario"
+        ? formato.format(inicio)
+        : `${formato.format(inicio)} al ${formato.format(ultimoDia)}`,
   };
 }
 
@@ -205,7 +232,7 @@ function TicketReportePeriodo({
         <p className="font-bold">{sucursal}</p>
         {direccion ? <p>{direccion}</p> : null}
         <p className="mt-3 border-y border-dashed border-black py-2 text-sm font-bold uppercase tracking-[0.1em]">
-          Corte {tipo}
+          Corte {nombrePeriodo[tipo]}
         </p>
         <p className="mt-2">{periodo.etiqueta}</p>
       </div>
@@ -312,9 +339,7 @@ function TicketReportePeriodo({
         </div>
       </section>
 
-      <p className="mt-5 border-t border-dashed border-black pt-3 text-center">
-        Fin del corte {tipo}
-      </p>
+      <p className="mt-5 border-t border-dashed border-black pt-3 text-center">Fin del corte</p>
     </div>
   );
 }
@@ -322,20 +347,28 @@ function TicketReportePeriodo({
 export function ReporteCajaPeriodico() {
   const { sucursales } = useCajaTurno();
   const { enLinea, pendientesSincronizar, sincronizarAhora } = useTienda();
-  const [tipo, setTipo] = useState<TipoPeriodo>("semanal");
+  const [tipo, setTipo] = useState<TipoPeriodo>("diario");
   const [fecha, setFecha] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [sucursalId, setSucursalId] = useState("");
   const [vistaPrevia, setVistaPrevia] = useState(false);
 
-  useEffect(() => setFecha(fechaLocalActual()), []);
+  useEffect(() => {
+    const hoy = fechaLocalActual();
+    setFecha(hoy);
+    setFechaHasta(hoy);
+  }, []);
 
-  const periodo = useMemo(() => calcularPeriodo(fecha, tipo), [fecha, tipo]);
+  const periodo = useMemo(
+    () => calcularPeriodo(fecha, tipo, fechaHasta),
+    [fecha, fechaHasta, tipo],
+  );
   const sucursal = sucursales.find((item) => item.id === sucursalId);
   const nombreSucursal = sucursal?.nombre ?? "Todas las sucursales";
   const direccionSucursal = sucursal?.direccion ?? "";
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["reporte-periodo-pos", tipo, fecha, sucursalId],
+    queryKey: ["reporte-periodo-pos", tipo, fecha, fechaHasta, sucursalId],
     enabled: Boolean(periodo && enLinea && pendientesSincronizar === 0),
     retry: false,
     queryFn: async () => {
@@ -361,11 +394,24 @@ export function ReporteCajaPeriodico() {
               <CalendarDays className="h-5 w-5 text-primary" /> Cortes imprimibles
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Genera un resumen semanal o mensual sin guardar copias adicionales del ticket.
+              Consulta lo que llevas hoy o genera un resumen por semana, mes o rango de fechas.
             </p>
           </div>
 
-          <div className="flex rounded-lg border border-border bg-cream p-1">
+          <div className="grid grid-cols-2 rounded-lg border border-border bg-cream p-1 sm:grid-cols-4">
+            <Button
+              type="button"
+              size="sm"
+              variant={tipo === "diario" ? "default" : "ghost"}
+              onClick={() => {
+                const hoy = fechaLocalActual();
+                setFecha(hoy);
+                setFechaHasta(hoy);
+                setTipo("diario");
+              }}
+            >
+              Hoy
+            </Button>
             <Button
               type="button"
               size="sm"
@@ -382,19 +428,50 @@ export function ReporteCajaPeriodico() {
             >
               Mes
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={tipo === "personalizado" ? "default" : "ghost"}
+              onClick={() => setTipo("personalizado")}
+            >
+              Fechas
+            </Button>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-          <div className="grid gap-2">
-            <Label htmlFor="fecha-corte-periodico">Fecha dentro del periodo</Label>
-            <Input
-              id="fecha-corte-periodico"
-              type="date"
-              value={fecha}
-              onChange={(evento) => setFecha(evento.target.value)}
-            />
-          </div>
+        <div
+          className={
+            tipo === "personalizado"
+              ? "mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end"
+              : tipo === "diario"
+                ? "mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+                : "mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
+          }
+        >
+          {tipo !== "diario" ? (
+            <div className="grid gap-2">
+              <Label htmlFor="fecha-corte-periodico">
+                {tipo === "personalizado" ? "Desde" : "Fecha dentro del periodo"}
+              </Label>
+              <Input
+                id="fecha-corte-periodico"
+                type="date"
+                value={fecha}
+                onChange={(evento) => setFecha(evento.target.value)}
+              />
+            </div>
+          ) : null}
+          {tipo === "personalizado" ? (
+            <div className="grid gap-2">
+              <Label htmlFor="fecha-hasta-corte-periodico">Hasta</Label>
+              <Input
+                id="fecha-hasta-corte-periodico"
+                type="date"
+                value={fechaHasta}
+                onChange={(evento) => setFechaHasta(evento.target.value)}
+              />
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <Label htmlFor="sucursal-corte-periodico">Sucursal</Label>
             <select
@@ -422,13 +499,24 @@ export function ReporteCajaPeriodico() {
 
         {periodo ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            {tipo === "semanal" ? "Semana" : "Mes"}: {periodo.etiqueta} · {nombreSucursal}
+            {tipo === "diario"
+              ? "Hoy"
+              : tipo === "semanal"
+                ? "Semana"
+                : tipo === "mensual"
+                  ? "Mes"
+                  : "Periodo"}
+            : {periodo.etiqueta} · {nombreSucursal}
+          </p>
+        ) : fecha && fechaHasta && tipo === "personalizado" ? (
+          <p className="mt-3 text-sm text-destructive">
+            La fecha final debe ser igual o posterior a la fecha inicial.
           </p>
         ) : null}
 
         {!enLinea ? (
           <p className="mt-4 rounded-lg border border-border bg-cream px-3 py-2 text-sm text-muted-foreground">
-            Conéctate a Internet para calcular un corte semanal o mensual.
+            Conéctate a Internet para calcular el corte seleccionado.
           </p>
         ) : null}
         {enLinea && pendientesSincronizar > 0 ? (
@@ -481,7 +569,7 @@ export function ReporteCajaPeriodico() {
       <Dialog open={vistaPrevia} onOpenChange={setVistaPrevia}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Vista previa del corte {tipo}</DialogTitle>
+            <DialogTitle>Vista previa del corte {nombrePeriodo[tipo]}</DialogTitle>
             <DialogDescription>
               Revisa el resumen antes de enviarlo a la impresora de tickets.
             </DialogDescription>
