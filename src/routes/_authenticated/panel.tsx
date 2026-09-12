@@ -199,11 +199,12 @@ function TableroNotas() {
     }
 
     setEstadoGuardado("sincronizando");
-    void supabase
-      .from("pos_notas_turno")
-      .select("id, texto, color, hecha, creada_por, creada_en, actualizada_en")
-      .order("creada_en", { ascending: false })
-      .then(async ({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("pos_notas_turno")
+          .select("id, texto, color, hecha, creada_por, creada_en, actualizada_en")
+          .order("creada_en", { ascending: false });
         if (error) throw error;
         const fusion = fusionarNotas(locales, (data ?? []).map(notaDesdeNube));
         if (fusion.pendientes.length > 0) {
@@ -215,12 +216,12 @@ function TableroNotas() {
         if (!activo) return;
         setNotas(fusion.notas);
         setEstadoGuardado("nube");
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!activo) return;
         console.warn("Las notas continuarán guardadas localmente", error);
         setEstadoGuardado("local");
-      });
+      }
+    })();
 
     return () => {
       activo = false;
