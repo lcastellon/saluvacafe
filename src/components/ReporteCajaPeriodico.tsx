@@ -376,7 +376,7 @@ export function ReporteCajaPeriodico() {
       const { data: respuesta, error: errorRpc } = await supabase.rpc("reporte_periodo_pos", {
         p_desde: periodo.inicio.toISOString(),
         p_hasta: periodo.fin.toISOString(),
-        p_sucursal_id: sucursalId || undefined,
+        ...(sucursalId ? { p_sucursal_id: sucursalId } : {}),
       });
       if (errorRpc) throw errorRpc;
       return leerResumen(respuesta);
