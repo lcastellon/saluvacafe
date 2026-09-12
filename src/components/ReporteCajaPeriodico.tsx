@@ -75,7 +75,7 @@ function fechaDesdeTexto(valor: string) {
   const partes = valor.split("-").map(Number);
   if (partes.length !== 3 || partes.some((parte) => !Number.isFinite(parte))) return null;
 
-  const [anio, mes, dia] = partes;
+  const [anio = 0, mes = 0, dia = 0] = partes;
   const fecha = new Date(anio, mes - 1, dia);
   if (fecha.getFullYear() !== anio || fecha.getMonth() !== mes - 1 || fecha.getDate() !== dia) {
     return null;
@@ -142,36 +142,36 @@ function numero(valor: Json | undefined) {
 
 function leerResumen(data: Json): ResumenPeriodo {
   const raiz = objeto(data);
-  const formas = objeto(raiz.formas);
-  const ordenes = objeto(raiz.tiposOrden);
+  const formas = objeto(raiz["formas"]);
+  const ordenes = objeto(raiz["tiposOrden"]);
 
   const leerForma = (nombre: FormaPago): ResumenFormaPago => {
     const forma = objeto(formas[nombre]);
     return {
-      operaciones: numero(forma.operaciones),
-      ventas: numero(forma.ventas),
-      propinas: numero(forma.propinas),
+      operaciones: numero(forma["operaciones"]),
+      ventas: numero(forma["ventas"]),
+      propinas: numero(forma["propinas"]),
     };
   };
   const leerOrden = (nombre: TipoOrden) => {
     const orden = objeto(ordenes[nombre]);
     return {
-      operaciones: numero(orden.operaciones),
-      ventas: numero(orden.ventas),
+      operaciones: numero(orden["operaciones"]),
+      ventas: numero(orden["ventas"]),
     };
   };
 
   return {
-    ventaTotal: numero(raiz.ventaTotal),
-    ventaNeta: numero(raiz.ventaNeta),
-    impuestos: numero(raiz.impuestos),
-    propinas: numero(raiz.propinas),
-    ingresosTotales: numero(raiz.ingresosTotales),
-    fondoInicial: numero(raiz.fondoInicial),
-    efectivoContado: numero(raiz.efectivoContado),
-    saldoFinalEstimado: numero(raiz.saldoFinalEstimado),
-    efectivoTotalEstimado: numero(raiz.efectivoTotalEstimado),
-    diferenciaEfectivo: numero(raiz.diferenciaEfectivo),
+    ventaTotal: numero(raiz["ventaTotal"]),
+    ventaNeta: numero(raiz["ventaNeta"]),
+    impuestos: numero(raiz["impuestos"]),
+    propinas: numero(raiz["propinas"]),
+    ingresosTotales: numero(raiz["ingresosTotales"]),
+    fondoInicial: numero(raiz["fondoInicial"]),
+    efectivoContado: numero(raiz["efectivoContado"]),
+    saldoFinalEstimado: numero(raiz["saldoFinalEstimado"]),
+    efectivoTotalEstimado: numero(raiz["efectivoTotalEstimado"]),
+    diferenciaEfectivo: numero(raiz["diferenciaEfectivo"]),
     formas: {
       Efectivo: leerForma("Efectivo"),
       Tarjeta: leerForma("Tarjeta"),
@@ -182,11 +182,11 @@ function leerResumen(data: Json): ResumenPeriodo {
       "Para llevar": leerOrden("Para llevar"),
       "Para recoger": leerOrden("Para recoger"),
     },
-    cuentasIniciadas: numero(raiz.cuentasIniciadas),
-    cuentasCerradas: numero(raiz.cuentasCerradas),
-    cuentasPendientes: numero(raiz.cuentasPendientes),
-    comensales: numero(raiz.comensales),
-    cuentaPromedio: numero(raiz.cuentaPromedio),
+    cuentasIniciadas: numero(raiz["cuentasIniciadas"]),
+    cuentasCerradas: numero(raiz["cuentasCerradas"]),
+    cuentasPendientes: numero(raiz["cuentasPendientes"]),
+    comensales: numero(raiz["comensales"]),
+    cuentaPromedio: numero(raiz["cuentaPromedio"]),
   };
 }
 
@@ -376,7 +376,7 @@ export function ReporteCajaPeriodico() {
       const { data: respuesta, error: errorRpc } = await supabase.rpc("reporte_periodo_pos", {
         p_desde: periodo.inicio.toISOString(),
         p_hasta: periodo.fin.toISOString(),
-        p_sucursal_id: sucursalId || null,
+        p_sucursal_id: sucursalId || undefined,
       });
       if (errorRpc) throw errorRpc;
       return leerResumen(respuesta);
