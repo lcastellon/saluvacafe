@@ -449,6 +449,10 @@ export type Database = {
         Args: { p_desde: string; p_hasta: string; p_sucursal_id?: string }
         Returns: Json
       }
+      reporte_productos_periodo_pos: {
+        Args: { p_desde: string; p_hasta: string; p_sucursal_id?: string }
+        Returns: Json
+      }
       sincronizar_venta_pos: { Args: { p_venta: Json }; Returns: string }
     }
     Enums: {

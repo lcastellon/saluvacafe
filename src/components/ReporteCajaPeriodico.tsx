@@ -19,8 +19,16 @@ import { useCajaTurno } from "@/lib/caja-turno";
 import { useTienda } from "@/lib/tienda";
 
 type TipoPeriodo = "diario" | "semanal" | "mensual" | "personalizado";
+type TipoConsulta = "caja" | "productos";
 type FormaPago = "Efectivo" | "Tarjeta" | "Transferencia";
 type TipoOrden = "A mesa" | "Para llevar" | "Para recoger";
+
+type ProductoPeriodo = {
+  productoId: string;
+  nombre: string;
+  cantidad: number;
+  montoTotal: number;
+};
 
 type ResumenFormaPago = {
   operaciones: number;
@@ -159,6 +167,12 @@ function textoErrorCorte(error: unknown) {
     return "Falta aplicar la actualización de comensales en Supabase. Aprueba la migración pendiente de reparación de Cortes en Lovable.";
   }
   if (
+    normalizado.includes("reporte_productos_periodo_pos") &&
+    (detalle.code === "PGRST202" || normalizado.includes("could not find"))
+  ) {
+    return "Falta activar el reporte por productos en Supabase. Aprueba la migración pendiente en Lovable.";
+  }
+  if (
     detalle.code === "PGRST202" ||
     (normalizado.includes("reporte_periodo_pos") && normalizado.includes("could not find"))
   ) {
@@ -229,6 +243,30 @@ function leerResumen(data: Json): ResumenPeriodo {
     comensales: numero(raiz["comensales"]),
     cuentaPromedio: numero(raiz["cuentaPromedio"]),
   };
+}
+
+function leerProductos(data: Json): ProductoPeriodo[] {
+  if (!Array.isArray(data)) return [];
+
+  return data.flatMap((valor) => {
+    const producto = objeto(valor);
+    const productoId = producto["productoId"];
+    const nombre = producto["nombre"];
+    const cantidad = numero(producto["cantidad"]);
+
+    if (typeof productoId !== "string" || typeof nombre !== "string" || cantidad <= 0) {
+      return [];
+    }
+
+    return [
+      {
+        productoId,
+        nombre,
+        cantidad,
+        montoTotal: numero(producto["montoTotal"]),
+      },
+    ];
+  });
 }
 
 function FilaDinero({
@@ -385,9 +423,72 @@ function TicketReportePeriodo({
   );
 }
 
+function TicketProductosPeriodo({
+  productos,
+  periodo,
+  sucursal,
+  direccion,
+}: {
+  productos: ProductoPeriodo[];
+  periodo: Periodo;
+  sucursal: string;
+  direccion: string;
+}) {
+  const unidades = productos.reduce((total, producto) => total + producto.cantidad, 0);
+  const montoTotal = productos.reduce((total, producto) => total + producto.montoTotal, 0);
+
+  return (
+    <div className="font-mono text-[12px] leading-snug text-black">
+      <div className="text-center">
+        <p className="text-lg font-bold uppercase">Salúva</p>
+        <p className="font-bold">{sucursal}</p>
+        {direccion ? <p>{direccion}</p> : null}
+        <p className="mt-3 border-y border-dashed border-black py-2 text-sm font-bold uppercase tracking-[0.08em]">
+          Ventas por producto
+        </p>
+      </div>
+
+      <section className="mt-3">
+        <p className="font-bold">Periodo considerado</p>
+        <p>{periodo.etiqueta}</p>
+      </section>
+
+      <section className="mt-3 border-t border-dashed border-black pt-2">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[10px] font-bold uppercase">
+          <span>Producto</span>
+          <span>Cant.</span>
+          <span className="text-right">Monto</span>
+        </div>
+        <div className="mt-1 space-y-1.5">
+          {productos.map((producto) => (
+            <div
+              key={producto.productoId}
+              className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2"
+            >
+              <span className="break-words">{producto.nombre}</span>
+              <span>{producto.cantidad}</span>
+              <span className="text-right">{mxnExacto(producto.montoTotal)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-2 border-t border-black pt-1 font-bold">
+          <span>Total</span>
+          <span>{unidades}</span>
+          <span className="text-right">{mxnExacto(montoTotal)}</span>
+        </div>
+      </section>
+
+      <p className="mt-5 border-t border-dashed border-black pt-3 text-center">
+        {productos.length} producto{productos.length === 1 ? "" : "s"} con ventas
+      </p>
+    </div>
+  );
+}
+
 export function ReporteCajaPeriodico() {
   const { sucursales } = useCajaTurno();
   const { enLinea, pendientesSincronizar, sincronizarAhora } = useTienda();
+  const [consulta, setConsulta] = useState<TipoConsulta>("caja");
   const [tipo, setTipo] = useState<TipoPeriodo>("diario");
   const [fecha, setFecha] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -408,9 +509,10 @@ export function ReporteCajaPeriodico() {
   const nombreSucursal = sucursal?.nombre ?? "Todas las sucursales";
   const direccionSucursal = sucursal?.direccion ?? "";
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const puedeConsultar = Boolean(periodo && enLinea && pendientesSincronizar === 0);
+  const resumenQuery = useQuery({
     queryKey: ["reporte-periodo-pos", tipo, fecha, fechaHasta, sucursalId],
-    enabled: Boolean(periodo && enLinea && pendientesSincronizar === 0),
+    enabled: puedeConsultar && consulta === "caja",
     retry: false,
     queryFn: async () => {
       if (!periodo) throw new Error("Selecciona una fecha válida");
@@ -427,7 +529,39 @@ export function ReporteCajaPeriodico() {
     },
   });
 
+  const productosQuery = useQuery({
+    queryKey: ["reporte-productos-periodo-pos", tipo, fecha, fechaHasta, sucursalId],
+    enabled: puedeConsultar && consulta === "productos",
+    retry: false,
+    queryFn: async () => {
+      if (!periodo) throw new Error("Selecciona una fecha válida");
+      const { data: respuesta, error: errorRpc } = await supabase.rpc(
+        "reporte_productos_periodo_pos",
+        {
+          p_desde: periodo.inicio.toISOString(),
+          p_hasta: periodo.fin.toISOString(),
+          ...(sucursalId ? { p_sucursal_id: sucursalId } : {}),
+        },
+      );
+      if (errorRpc) {
+        console.error("No fue posible generar el reporte de productos", errorRpc);
+        throw errorRpc;
+      }
+      return leerProductos(respuesta);
+    },
+  });
+
+  const data = consulta === "caja" ? resumenQuery.data : productosQuery.data;
+  const isLoading = consulta === "caja" ? resumenQuery.isLoading : productosQuery.isLoading;
+  const isFetching = consulta === "caja" ? resumenQuery.isFetching : productosQuery.isFetching;
+  const error = consulta === "caja" ? resumenQuery.error : productosQuery.error;
+  const refetch = consulta === "caja" ? resumenQuery.refetch : productosQuery.refetch;
+
   const mensajeError = textoErrorCorte(error);
+  const resumen = resumenQuery.data;
+  const productos = productosQuery.data;
+  const unidadesVendidas = productos?.reduce((total, producto) => total + producto.cantidad, 0);
+  const montoProductos = productos?.reduce((total, producto) => total + producto.montoTotal, 0);
 
   return (
     <>
@@ -438,7 +572,7 @@ export function ReporteCajaPeriodico() {
               <CalendarDays className="h-5 w-5 text-primary" /> Cortes imprimibles
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Consulta lo que llevas hoy o genera un resumen por semana, mes o rango de fechas.
+              Genera un resumen de caja o consulta las ventas por producto en el periodo elegido.
             </p>
           </div>
 
@@ -481,6 +615,31 @@ export function ReporteCajaPeriodico() {
               Fechas
             </Button>
           </div>
+        </div>
+
+        <div className="mt-5 inline-grid grid-cols-2 rounded-lg border border-border bg-cream p-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={consulta === "caja" ? "default" : "ghost"}
+            onClick={() => {
+              setConsulta("caja");
+              setVistaPrevia(false);
+            }}
+          >
+            Resumen de caja
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={consulta === "productos" ? "default" : "ghost"}
+            onClick={() => {
+              setConsulta("productos");
+              setVistaPrevia(false);
+            }}
+          >
+            Ventas por producto
+          </Button>
         </div>
 
         <div
@@ -592,19 +751,35 @@ export function ReporteCajaPeriodico() {
           </div>
         ) : null}
 
-        {data && !error ? (
+        {consulta === "caja" && resumen && !error ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-background/70 p-4">
               <p className="text-xs text-muted-foreground">Venta total</p>
-              <p className="mt-1 font-display text-xl">{mxnExacto(data.ventaTotal)}</p>
+              <p className="mt-1 font-display text-xl">{mxnExacto(resumen.ventaTotal)}</p>
             </div>
             <div className="rounded-xl border border-border bg-background/70 p-4">
               <p className="text-xs text-muted-foreground">Propinas</p>
-              <p className="mt-1 font-display text-xl">{mxnExacto(data.propinas)}</p>
+              <p className="mt-1 font-display text-xl">{mxnExacto(resumen.propinas)}</p>
             </div>
             <div className="rounded-xl border border-border bg-background/70 p-4">
               <p className="text-xs text-muted-foreground">Cuentas</p>
-              <p className="mt-1 font-display text-xl">{data.cuentasIniciadas}</p>
+              <p className="mt-1 font-display text-xl">{resumen.cuentasIniciadas}</p>
+            </div>
+          </div>
+        ) : null}
+        {consulta === "productos" && productos && !error ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Productos con ventas</p>
+              <p className="mt-1 font-display text-xl">{productos.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Unidades vendidas</p>
+              <p className="mt-1 font-display text-xl">{unidadesVendidas}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Monto de productos</p>
+              <p className="mt-1 font-display text-xl">{mxnExacto(montoProductos ?? 0)}</p>
             </div>
           </div>
         ) : null}
@@ -613,15 +788,19 @@ export function ReporteCajaPeriodico() {
       <Dialog open={vistaPrevia} onOpenChange={setVistaPrevia}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Vista previa del corte {nombrePeriodo[tipo]}</DialogTitle>
+            <DialogTitle>
+              {consulta === "caja"
+                ? `Vista previa del corte ${nombrePeriodo[tipo]}`
+                : "Vista previa de ventas por producto"}
+            </DialogTitle>
             <DialogDescription>
               Revisa el resumen antes de enviarlo a la impresora de tickets.
             </DialogDescription>
           </DialogHeader>
-          {data && periodo ? (
+          {consulta === "caja" && resumen && periodo ? (
             <div className="mx-auto w-full max-w-[340px] rounded-sm bg-white p-5 shadow-inner">
               <TicketReportePeriodo
-                resumen={data}
+                resumen={resumen}
                 tipo={tipo}
                 periodo={periodo}
                 sucursal={nombreSucursal}
@@ -629,22 +808,52 @@ export function ReporteCajaPeriodico() {
               />
             </div>
           ) : null}
+          {consulta === "productos" && productos && periodo ? (
+            <div className="mx-auto w-full max-w-[340px] rounded-sm bg-white p-5 shadow-inner">
+              {productos.length > 0 ? (
+                <TicketProductosPeriodo
+                  productos={productos}
+                  periodo={periodo}
+                  sucursal={nombreSucursal}
+                  direccion={direccionSucursal}
+                />
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No se vendieron productos en el periodo seleccionado.
+                </p>
+              )}
+            </div>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setVistaPrevia(false)}>
               Cerrar
             </Button>
-            <Button type="button" onClick={() => window.print()} disabled={!data || !periodo}>
+            <Button
+              type="button"
+              onClick={() => window.print()}
+              disabled={!periodo || (consulta === "caja" ? !resumen : !productos?.length)}
+            >
               <Printer className="mr-1.5 h-4 w-4" /> Imprimir
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {data && periodo ? (
+      {consulta === "caja" && resumen && periodo ? (
         <div className="preticket-print" aria-hidden="true">
           <TicketReportePeriodo
-            resumen={data}
+            resumen={resumen}
             tipo={tipo}
+            periodo={periodo}
+            sucursal={nombreSucursal}
+            direccion={direccionSucursal}
+          />
+        </div>
+      ) : null}
+      {consulta === "productos" && productos && productos.length > 0 && periodo ? (
+        <div className="preticket-print" aria-hidden="true">
+          <TicketProductosPeriodo
+            productos={productos}
             periodo={periodo}
             sucursal={nombreSucursal}
             direccion={direccionSucursal}
