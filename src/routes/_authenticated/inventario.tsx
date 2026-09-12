@@ -189,7 +189,7 @@ function Inventario() {
     mutationFn: (v: { id: string; delta: number }) => ajustar({ data: v }),
     onMutate: async ({ id, delta }) => {
       await qc.cancelQueries({ queryKey: ["insumos"] });
-      const anteriores = qc.getQueryData<Insum[]>(["insumos"]) ?? inventarioLocal;
+      const anteriores = qc.getQueryData<InsumoLocal[]>(["insumos"]) ?? inventarioLocal;
       const siguientes = anteriores.map((insumo) =>
         insumo.id === id
           ? { ...insumo, existencia: Math.max(0, Number(insumo.existencia) + delta) }
@@ -201,7 +201,7 @@ function Inventario() {
       return { anteriores };
     },
     onSuccess: ({ id, existencia }) => {
-      const actuales = qc.getQueryData<Insum[]>(["insumos"]) ?? inventarioLocal;
+      const actuales = qc.getQueryData<InsumoLocal[]>(["insumos"]) ?? inventarioLocal;
       const confirmados = actuales.map((insumo) =>
         insumo.id === id ? { ...insumo, existencia } : insumo,
       );

@@ -140,6 +140,78 @@ export type Database = {
           },
         ]
       }
+      pos_configuracion: {
+        Row: {
+          actualizado_en: string
+          actualizado_por: string | null
+          direccion: string
+          horario: string
+          id: string
+          iva: number
+          moneda: string
+          nombre: string
+          propina_sugerida: number
+          sucursal: string
+          telefono: string
+        }
+        Insert: {
+          actualizado_en?: string
+          actualizado_por?: string | null
+          direccion: string
+          horario: string
+          id?: string
+          iva: number
+          moneda: string
+          nombre: string
+          propina_sugerida: number
+          sucursal: string
+          telefono: string
+        }
+        Update: {
+          actualizado_en?: string
+          actualizado_por?: string | null
+          direccion?: string
+          horario?: string
+          id?: string
+          iva?: number
+          moneda?: string
+          nombre?: string
+          propina_sugerida?: number
+          sucursal?: string
+          telefono?: string
+        }
+        Relationships: []
+      }
+      pos_notas_turno: {
+        Row: {
+          actualizada_en: string
+          color: number
+          creada_en: string
+          creada_por: string
+          hecha: boolean
+          id: string
+          texto: string
+        }
+        Insert: {
+          actualizada_en?: string
+          color?: number
+          creada_en?: string
+          creada_por?: string
+          hecha?: boolean
+          id?: string
+          texto: string
+        }
+        Update: {
+          actualizada_en?: string
+          color?: number
+          creada_en?: string
+          creada_por?: string
+          hecha?: boolean
+          id?: string
+          texto?: string
+        }
+        Relationships: []
+      }
       pos_sucursales: {
         Row: {
           activa: boolean
@@ -257,6 +329,7 @@ export type Database = {
           canal: string
           client_id: string
           cliente: string
+          comensales: number
           creado_en: string
           estado: string
           folio: string
@@ -276,6 +349,7 @@ export type Database = {
           canal: string
           client_id: string
           cliente?: string
+          comensales?: number
           creado_en: string
           estado: string
           folio: string
@@ -295,6 +369,7 @@ export type Database = {
           canal?: string
           client_id?: string
           cliente?: string
+          comensales?: number
           creado_en?: string
           estado?: string
           folio?: string
@@ -343,6 +418,10 @@ export type Database = {
       abrir_caja_pos: {
         Args: { p_fondo_inicial: number; p_token: string }
         Returns: Json
+      }
+      ajustar_existencia: {
+        Args: { p_delta: number; p_id: string }
+        Returns: number
       }
       autorizar_terminal_pos: {
         Args: { p_nombre: string; p_sucursal_id: string; p_token: string }
