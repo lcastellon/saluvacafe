@@ -187,8 +187,37 @@ function Inventario() {
 
   const mAjustar = useMutation({
     mutationFn: (v: { id: string; delta: number }) => ajustar({ data: v }),
-    onSuccess: invalidar,
-    onError,
+    onMutate: async ({ id, delta }) => {
+      await qc.cancelQueries({ queryKey: ["insumos"] });
+      const anteriores = qc.getQueryData<Insum[]>(["insumos"]) ?? inventarioLocal;
+      const siguientes = anteriores.map((insumo) =>
+        insumo.id === id
+          ? { ...insumo, existencia: Math.max(0, Number(insumo.existencia) + delta) }
+          : insumo,
+      );
+      qc.setQueryData(["insumos"], siguientes);
+      setInventarioLocal(siguientes);
+      void guardarInventario(siguientes);
+      return { anteriores };
+    },
+    onSuccess: ({ id, existencia }) => {
+      const actuales = qc.getQueryData<Insum[]>(["insumos"]) ?? inventarioLocal;
+      const confirmados = actuales.map((insumo) =>
+        insumo.id === id ? { ...insumo, existencia } : insumo,
+      );
+      qc.setQueryData(["insumos"], confirmados);
+      setInventarioLocal(confirmados);
+      void guardarInventario(confirmados);
+    },
+    onError: (error, _variables, contexto) => {
+      if (contexto?.anteriores) {
+        qc.setQueryData(["insumos"], contexto.anteriores);
+        setInventarioLocal(contexto.anteriores);
+        void guardarInventario(contexto.anteriores);
+      }
+      onError(error);
+    },
+    onSettled: invalidar,
   });
 
   const guardar = (e: React.FormEvent) => {
@@ -288,6 +317,8 @@ function Inventario() {
                           className="h-8 w-8"
                           onClick={() => abrirEditar(i)}
                           disabled={!enLinea}
+                          aria-label={`Editar ${i.nombre}`}
+                          title="Editar insumo"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -297,6 +328,8 @@ function Inventario() {
                           className="h-8 w-8"
                           onClick={() => mEliminar.mutate(i.id)}
                           disabled={!enLinea || mEliminar.isPending}
+                          aria-label={`Eliminar ${i.nombre}`}
+                          title="Eliminar insumo"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -307,7 +340,9 @@ function Inventario() {
                       variant="outline"
                       className="h-8 w-8"
                       onClick={() => mAjustar.mutate({ id: i.id, delta: -1 })}
-                      disabled={!enLinea || mAjustar.isPending}
+                      disabled={!enLinea || mAjustar.isPending || existencia <= 0}
+                      aria-label={`Restar una ${i.unidad} a ${i.nombre}`}
+                      title="Restar una unidad"
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </Button>
@@ -317,6 +352,8 @@ function Inventario() {
                       className="h-8 w-8"
                       onClick={() => mAjustar.mutate({ id: i.id, delta: 1 })}
                       disabled={!enLinea || mAjustar.isPending}
+                      aria-label={`Sumar una ${i.unidad} a ${i.nombre}`}
+                      title="Sumar una unidad"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </Button>

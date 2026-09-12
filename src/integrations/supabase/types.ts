@@ -412,6 +412,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ajustar_existencia: {
+        Args: { p_delta: number; p_id: string }
+        Returns: number
+      }
       abrir_caja_pos: {
         Args: { p_fondo_inicial: number; p_token: string }
         Returns: Json

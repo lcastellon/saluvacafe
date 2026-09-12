@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
-async function exigirAdmin(context: { supabase: any; userId: string }) {
+async function exigirAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -25,9 +27,11 @@ function validarInsumo(input: {
   const existencia = Number(input.existencia ?? 0);
   const minimo = Number(input.minimo ?? 0);
   const costoUnitario = Number(input.costoUnitario ?? 0);
-  if (Number.isNaN(existencia) || existencia < 0) throw new Error("La existencia debe ser un número positivo");
+  if (Number.isNaN(existencia) || existencia < 0)
+    throw new Error("La existencia debe ser un número positivo");
   if (Number.isNaN(minimo) || minimo < 0) throw new Error("El mínimo debe ser un número positivo");
-  if (Number.isNaN(costoUnitario) || costoUnitario < 0) throw new Error("El costo unitario debe ser un número positivo");
+  if (Number.isNaN(costoUnitario) || costoUnitario < 0)
+    throw new Error("El costo unitario debe ser un número positivo");
   return { nombre, unidad, existencia, minimo, costoUnitario, proveedor };
 }
 
@@ -45,11 +49,18 @@ export const listarInsumos = createServerFn({ method: "GET" })
 
 export const crearInsumo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { nombre: string; unidad: string; existencia: number; minimo: number; costoUnitario: number; proveedor: string }) =>
-    validarInsumo(input),
+  .inputValidator(
+    (input: {
+      nombre: string;
+      unidad: string;
+      existencia: number;
+      minimo: number;
+      costoUnitario: number;
+      proveedor: string;
+    }) => validarInsumo(input),
   )
   .handler(async ({ data, context }) => {
-    await exigirAdmin(context as never);
+    await exigirAdmin(context);
     const { data: creado, error } = await context.supabase
       .from("insumos")
       .insert({
@@ -86,7 +97,7 @@ export const actualizarInsumo = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    await exigirAdmin(context as never);
+    await exigirAdmin(context);
     const { error } = await context.supabase
       .from("insumos")
       .update({
@@ -107,8 +118,11 @@ export const eliminarInsumo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    await exigirAdmin(context as never);
-    const { error } = await context.supabase.from("insumos").update({ activo: false }).eq("id", data.id);
+    await exigirAdmin(context);
+    const { error } = await context.supabase
+      .from("insumos")
+      .update({ activo: false })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -121,22 +135,16 @@ export const ajustarExistencia = createServerFn({ method: "POST" })
     if (Number.isNaN(delta)) throw new Error("El delta debe ser un número");
     return { id: input.id, delta };
   })
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: insumo, error: e1 } = await supabaseAdmin
-      .from("insumos")
-      .select("existencia")
-      .eq("id", data.id)
-      .eq("activo", true)
-      .single();
-    if (e1 || !insumo) throw new Error(e1?.message ?? "Insumo no encontrado");
+  .handler(async ({ data, context }) => {
+    const { data: existencia, error: errorAjuste } = await context.supabase.rpc(
+      "ajustar_existencia",
+      {
+        p_id: data.id,
+        p_delta: data.delta,
+      },
+    );
+    if (errorAjuste) throw new Error(errorAjuste.message);
+    if (existencia === null) throw new Error("No se recibió la existencia actualizada");
 
-    const nueva = Math.max(0, Number(insumo.existencia) + data.delta);
-    const { error: e2 } = await supabaseAdmin
-      .from("insumos")
-      .update({ existencia: nueva })
-      .eq("id", data.id);
-    if (e2) throw new Error(e2.message);
-
-    return { id: data.id, existencia: nueva };
+    return { id: data.id, existencia: Number(existencia) };
   });
