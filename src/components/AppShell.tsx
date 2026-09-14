@@ -180,7 +180,7 @@ export function AppShell({
                 enLinea
                   ? pendientesSincronizar > 0
                     ? "border-primary text-primary hover:bg-primary/10"
-                    : "border-border text-muted-foreground"
+                    : "border-success text-success"
                   : "border-destructive/40 bg-destructive/5 text-destructive"
               } disabled:cursor-default`}
             >
