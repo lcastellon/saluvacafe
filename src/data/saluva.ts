@@ -352,6 +352,23 @@ export type Pedido = {
   sincronizacion: "pendiente" | "sincronizado";
 };
 
+export type Comanda = {
+  id: string;
+  folio: string;
+  cliente: string;
+  canal: Pedido["canal"];
+  estado: EstadoPedido;
+  hora: string;
+  items: LineaPedido[];
+  subtotal: number;
+  iva: number;
+  total: number;
+  cajaId?: string | undefined;
+  comensales: number;
+  creadoEn: string;
+  sincronizacion: "pendiente" | "sincronizado";
+};
+
 export const mxn = (n: number) =>
   new Intl.NumberFormat("es-MX", {
     style: "currency",

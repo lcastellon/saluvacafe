@@ -299,7 +299,16 @@ function DetalleComanda({ comanda }: { comanda: ComandaPrevia }) {
 function Caja() {
   const { perfil } = useAuth();
   const { cajaActual, terminalAutorizada, cargandoCaja } = useCajaTurno();
-  const { productos, crearPedido, generarFolioPedido, negocio, enLinea } = useTienda();
+  const {
+    productos,
+    crearPedido,
+    guardarComanda,
+    eliminarComanda,
+    comandaSeleccionada,
+    limpiarComandaSeleccionada,
+    negocio,
+    enLinea,
+  } = useTienda();
   const [cat, setCat] = useState<(typeof categorias)[number]>("Todo");
   const [busqueda, setBusqueda] = useState("");
   const [items, setItems] = useState<LineaPedido[]>([]);
@@ -316,6 +325,10 @@ function Caja() {
   const [ticketCobrado, setTicketCobrado] = useState<Pedido | null>(null);
   const [comandaPrevia, setComandaPrevia] = useState<ComandaPrevia | null>(null);
   const [comandaAbierta, setComandaAbierta] = useState(false);
+  const [comandaActivaId, setComandaActivaId] = useState<string | null>(null);
+  const [folioComandaActiva, setFolioComandaActiva] = useState<string | null>(null);
+  const [estadoComandaActiva, setEstadoComandaActiva] =
+    useState<Pedido["estado"]>("En preparación");
 
   useEffect(() => {
     if (!enLinea) setPago("Efectivo");
@@ -325,6 +338,27 @@ function Caja() {
     setComandaPrevia(null);
     setComandaAbierta(false);
   }, [canal, cliente, comensalesTexto, items]);
+
+  useEffect(() => {
+    if (!comandaSeleccionada) return;
+    setItems(
+      comandaSeleccionada.items.map((item) => ({
+        ...item,
+        opciones: item.opciones ? [...item.opciones] : undefined,
+      })),
+    );
+    setCliente(comandaSeleccionada.cliente);
+    setCanal(comandaSeleccionada.canal);
+    setComensalesTexto(String(comandaSeleccionada.comensales));
+    setComandaActivaId(comandaSeleccionada.id);
+    setFolioComandaActiva(comandaSeleccionada.folio);
+    setEstadoComandaActiva(comandaSeleccionada.estado);
+    setComandaPrevia(null);
+    limpiarComandaSeleccionada();
+    toast.success(`Comanda ${comandaSeleccionada.folio} abierta`, {
+      description: "Puedes modificarla o continuar con el cobro.",
+    });
+  }, [comandaSeleccionada, limpiarComandaSeleccionada]);
 
   // Modificadores
   const [enModificadores, setEnModificadores] = useState<Producto | null>(null);
@@ -469,11 +503,16 @@ function Caja() {
       montoRecibido,
       cambio,
       comensales,
-      folio: comandaPrevia?.folio,
+      folio: folioComandaActiva ?? comandaPrevia?.folio,
+      estado: estadoComandaActiva,
     });
+    if (comandaActivaId) eliminarComanda(comandaActivaId);
     setPreTicket(null);
     setComandaPrevia(null);
     setComandaAbierta(false);
+    setComandaActivaId(null);
+    setFolioComandaActiva(null);
+    setEstadoComandaActiva("En preparación");
     setTicketCobrado(pedido);
     setCobroAbierto(false);
     if (enLinea) {
@@ -507,21 +546,40 @@ function Caja() {
       return;
     }
 
-    if (!comandaPrevia) {
-      setComandaPrevia({
-        folio: generarFolioPedido(),
-        cliente: cliente || (canal === "A mesa" ? "Mesa" : "Cliente"),
-        canal,
-        items: items.map((item) => ({
-          ...item,
-          opciones: item.opciones ? [...item.opciones] : undefined,
-        })),
-        total,
-        comensales,
-        creadoEn: new Date().toISOString(),
-      });
-    }
+    const guardada = guardarComanda({
+      id: comandaActivaId ?? undefined,
+      folio: folioComandaActiva ?? undefined,
+      cliente,
+      canal,
+      items,
+      comensales,
+    });
+    setComandaActivaId(guardada.id);
+    setFolioComandaActiva(guardada.folio);
+    setEstadoComandaActiva(guardada.estado);
+    setComandaPrevia({
+      folio: guardada.folio,
+      cliente: guardada.cliente,
+      canal: guardada.canal,
+      items: guardada.items,
+      total: guardada.total,
+      comensales: guardada.comensales,
+      creadoEn: guardada.creadoEn,
+    });
     setComandaAbierta(true);
+    toast.success(`Comanda ${guardada.folio} guardada`, {
+      description: "Quedará como pendiente hasta que se cobre.",
+    });
+  };
+
+  const limpiarTicket = () => {
+    setItems([]);
+    setCliente("");
+    setComensalesTexto("1");
+    setComandaActivaId(null);
+    setFolioComandaActiva(null);
+    setEstadoComandaActiva("En preparación");
+    setComandaPrevia(null);
   };
 
   return (
@@ -685,7 +743,7 @@ function Caja() {
             onClick={abrirComanda}
           >
             <Printer className="mr-1.5 h-4 w-4" />
-            Comandar
+            {comandaActivaId ? "Actualizar comanda" : "Comandar"}
           </Button>
           <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
             Genera la orden para barra sin cobrar.
@@ -764,7 +822,7 @@ function Caja() {
               variant="outline"
               size="lg"
               disabled={items.length === 0}
-              onClick={() => setItems([])}
+              onClick={limpiarTicket}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

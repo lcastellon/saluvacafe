@@ -1,4 +1,4 @@
-import type { Pedido, Producto } from "@/data/saluva";
+import type { Comanda, Pedido, Producto } from "@/data/saluva";
 
 export type NegocioLocal = {
   nombre: string;
@@ -14,6 +14,8 @@ export type NegocioLocal = {
 export type TiendaSnapshot = {
   productos: Producto[];
   pedidos: Pedido[];
+  comandas?: Comanda[];
+  comandasEliminadas?: string[];
   negocio: NegocioLocal;
 };
 

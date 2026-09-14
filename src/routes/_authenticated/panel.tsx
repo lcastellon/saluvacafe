@@ -400,7 +400,7 @@ function TableroNotas() {
 }
 
 function Dashboard() {
-  const { pedidos, enLinea } = useTienda();
+  const { pedidos, comandas, enLinea } = useTienda();
   const listar = useServerFn(listarInsumos);
   const { data: insumos } = useQuery({
     queryKey: ["insumos"],
@@ -411,7 +411,10 @@ function Dashboard() {
   const pedidosHoy = pedidos.filter((pedido) => esHoy(pedido.creadoEn));
   const ventasDia = pedidosHoy.reduce((suma, pedido) => suma + pedido.total, 0);
   const tickets = pedidosHoy.length;
-  const activos = pedidos.filter((pedido) => pedido.estado !== "Entregado");
+  const activos = [
+    ...comandas.filter((comanda) => comanda.estado !== "Entregado"),
+    ...pedidos.filter((pedido) => pedido.estado !== "Entregado"),
+  ];
   const horas = ventasPorHora(pedidos);
   const semana = ventasUltimosSieteDias(pedidos);
   const top = productosMasVendidos(pedidosHoy);
@@ -438,7 +441,7 @@ function Dashboard() {
           icon={CupSoda}
         />
         <Kpi
-          label="Pedidos activos"
+          label="Comandas activas"
           valor={`${activos.length}`}
           detalle="En barra y listos"
           icon={Coffee}
@@ -510,7 +513,7 @@ function Dashboard() {
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="surface p-5 lg:col-span-2">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Pedidos en barra</h2>
+            <h2 className="text-lg font-semibold">Comandas en barra</h2>
             <Link
               to="/pedidos"
               className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
@@ -541,7 +544,7 @@ function Dashboard() {
               </li>
             ))}
             {activos.length === 0 && (
-              <li className="py-6 text-sm text-muted-foreground">No hay pedidos activos.</li>
+              <li className="py-6 text-sm text-muted-foreground">No hay comandas activas.</li>
             )}
           </ul>
         </div>

@@ -28,7 +28,7 @@ import { useCajaTurno } from "@/lib/caja-turno";
 const nav: { to: string; label: string; icon: LucideIcon; soloAdmin?: boolean }[] = [
   { to: "/panel", label: "Dashboard", icon: LayoutDashboard },
   { to: "/caja", label: "Punto de venta", icon: ShoppingBag },
-  { to: "/pedidos", label: "Pedidos activos", icon: ReceiptText },
+  { to: "/pedidos", label: "Comandas", icon: ReceiptText },
   { to: "/menu", label: "Menú y productos", icon: Coffee },
   { to: "/inventario", label: "Inventario", icon: Boxes },
   { to: "/reportes", label: "Reportes", icon: BarChart3, soloAdmin: true },
