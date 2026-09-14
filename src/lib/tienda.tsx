@@ -44,6 +44,7 @@ type Ctx = {
   crearProducto: (p: Omit<Producto, "id">) => void;
   eliminarProducto: (id: string) => void;
   cambiarEstado: (id: string, estado: EstadoPedido) => void;
+  generarFolioPedido: () => string;
   crearPedido: (args: {
     cliente: string;
     canal: Pedido["canal"];
@@ -53,6 +54,7 @@ type Ctx = {
     montoRecibido?: number;
     cambio?: number;
     comensales: number;
+    folio?: string;
   }) => Pedido;
 };
 
@@ -88,6 +90,7 @@ function folioVenta(pedidos: Pedido[], creadoEn: string) {
   const fecha = new Date(creadoEn);
   const clave = claveFechaLocal(fecha);
   const prefijo = `SLV-${clave}-`;
+  const claveContador = `saluva-folio-diario-${clave}`;
   const pedidosDelDia = pedidos.filter(
     (pedido) => claveFechaLocal(new Date(pedido.creadoEn)) === clave,
   );
@@ -96,7 +99,19 @@ function folioVenta(pedidos: Pedido[], creadoEn: string) {
     const numero = Number(pedido.folio.slice(prefijo.length));
     return Number.isInteger(numero) && numero > mayor ? numero : mayor;
   }, 0);
-  const siguiente = Math.max(pedidosDelDia.length, ultimoNumero) + 1;
+  let ultimoReservado = 0;
+  try {
+    const guardado = Number(globalThis.localStorage?.getItem(claveContador));
+    if (Number.isInteger(guardado) && guardado > 0) ultimoReservado = guardado;
+  } catch {
+    // El historial cargado sigue permitiendo numerar aunque el navegador bloquee localStorage.
+  }
+  const siguiente = Math.max(pedidosDelDia.length, ultimoNumero, ultimoReservado) + 1;
+  try {
+    globalThis.localStorage?.setItem(claveContador, String(siguiente));
+  } catch {
+    // La venta y la comanda continúan aunque no sea posible guardar el contador local.
+  }
 
   return `${prefijo}${String(siguiente).padStart(3, "0")}`;
 }
@@ -343,6 +358,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
             return actualizado;
           }),
         ),
+      generarFolioPedido: () => folioVenta(pedidos, new Date().toISOString()),
       crearPedido: ({
         cliente,
         canal,
@@ -352,13 +368,14 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         montoRecibido,
         cambio = 0,
         comensales,
+        folio,
       }) => {
         const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
         const iva = subtotal * (negocio.iva / 100);
         const creadoEn = new Date().toISOString();
         const nuevo: Pedido = {
           id: idVenta(),
-          folio: folioVenta(pedidos, creadoEn),
+          folio: folio ?? folioVenta(pedidos, creadoEn),
           cliente: cliente || (canal === "A mesa" ? "Mesa" : "Cliente"),
           canal,
           metodoPago: enLinea ? metodoPago : "Efectivo",

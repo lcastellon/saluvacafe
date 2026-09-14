@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Minus, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { Calculator, Minus, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { DoodleTicket } from "@/components/doodles";
 import {
   Dialog,
@@ -193,11 +193,11 @@ function DetalleTicket({
               <span>{mxnExacto(montoCobrado)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Recibido</span>
+              <span>{metodoPago === "Efectivo" ? "Efectivo recibido" : "Monto recibido"}</span>
               <span>{mxnExacto(montoRecibido)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Cambio</span>
+              <span>{metodoPago === "Efectivo" ? "Cambio exacto" : "Cambio"}</span>
               <span>{mxnExacto(cambio)}</span>
             </div>
           </div>
@@ -221,21 +221,31 @@ function numeroOrdenDesdeFolio(folio: string) {
   return String(Number(coincidencia[1]));
 }
 
-function DetalleComanda({ pedido }: { pedido: Pedido }) {
-  const fecha = new Date(pedido.creadoEn);
-  const servicio = pedido.canal === "A mesa" ? "CONSUMIR AQUÍ" : pedido.canal.toUpperCase();
+type ComandaPrevia = {
+  folio: string;
+  cliente: string;
+  canal: Pedido["canal"];
+  items: LineaPedido[];
+  total: number;
+  comensales: number;
+  creadoEn: string;
+};
+
+function DetalleComanda({ comanda }: { comanda: ComandaPrevia }) {
+  const fecha = new Date(comanda.creadoEn);
+  const servicio = comanda.canal === "A mesa" ? "CONSUMIR AQUÍ" : comanda.canal.toUpperCase();
 
   return (
     <div className="font-mono text-[13px] leading-snug text-black">
       <div className="border-b border-dashed border-black pb-3 text-center">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em]">Comanda de barra</p>
-        <p className="mt-1 text-3xl font-black">ORDEN #{numeroOrdenDesdeFolio(pedido.folio)}</p>
+        <p className="mt-1 text-3xl font-black">ORDEN #{numeroOrdenDesdeFolio(comanda.folio)}</p>
       </div>
 
       <div className="my-3 space-y-1">
         <div className="flex justify-between gap-3">
           <span>Comensales</span>
-          <span className="font-bold">{pedido.comensales}</span>
+          <span className="font-bold">{comanda.comensales}</span>
         </div>
         <div className="flex justify-between gap-3">
           <span>Fecha</span>
@@ -250,7 +260,7 @@ function DetalleComanda({ pedido }: { pedido: Pedido }) {
       <div className="my-5 border-y-2 border-black py-3 text-center">
         <p className="text-lg font-black tracking-[0.08em]">{servicio}</p>
         <p className="mt-2 break-words text-2xl font-black uppercase">
-          {pedido.cliente.trim() || "SIN NOMBRE"}
+          {comanda.cliente.trim() || "SIN NOMBRE"}
         </p>
       </div>
 
@@ -261,7 +271,7 @@ function DetalleComanda({ pedido }: { pedido: Pedido }) {
           <span className="text-right">Total</span>
         </div>
         <div className="divide-y divide-dashed divide-black/50">
-          {pedido.items.map((item) => (
+          {comanda.items.map((item) => (
             <div key={item.lineaId ?? item.productoId} className="py-2">
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 font-bold">
                 <span>{item.cantidad}</span>
@@ -280,7 +290,7 @@ function DetalleComanda({ pedido }: { pedido: Pedido }) {
 
       <div className="mt-3 flex justify-between border-t-2 border-black pt-2 text-lg font-black">
         <span>TOTAL</span>
-        <span>{mxnExacto(pedido.total)}</span>
+        <span>{mxnExacto(comanda.total)}</span>
       </div>
     </div>
   );
@@ -289,7 +299,7 @@ function DetalleComanda({ pedido }: { pedido: Pedido }) {
 function Caja() {
   const { perfil } = useAuth();
   const { cajaActual, terminalAutorizada, cargandoCaja } = useCajaTurno();
-  const { productos, crearPedido, negocio, enLinea } = useTienda();
+  const { productos, crearPedido, generarFolioPedido, negocio, enLinea } = useTienda();
   const [cat, setCat] = useState<(typeof categorias)[number]>("Todo");
   const [busqueda, setBusqueda] = useState("");
   const [items, setItems] = useState<LineaPedido[]>([]);
@@ -302,12 +312,19 @@ function Caja() {
   const [cobroAbierto, setCobroAbierto] = useState(false);
   const [propinaTexto, setPropinaTexto] = useState("0");
   const [recibidoTexto, setRecibidoTexto] = useState("");
+  const [calculadoraEfectivo, setCalculadoraEfectivo] = useState(false);
   const [ticketCobrado, setTicketCobrado] = useState<Pedido | null>(null);
-  const [documentoCobrado, setDocumentoCobrado] = useState<"comanda" | "ticket">("comanda");
+  const [comandaPrevia, setComandaPrevia] = useState<ComandaPrevia | null>(null);
+  const [comandaAbierta, setComandaAbierta] = useState(false);
 
   useEffect(() => {
     if (!enLinea) setPago("Efectivo");
   }, [enLinea]);
+
+  useEffect(() => {
+    setComandaPrevia(null);
+    setComandaAbierta(false);
+  }, [canal, cliente, comensalesTexto, items]);
 
   // Modificadores
   const [enModificadores, setEnModificadores] = useState<Producto | null>(null);
@@ -345,6 +362,7 @@ function Caja() {
         : 0
       : montoCobrar;
   const cambio = Math.max(0, Math.round((montoRecibido - montoCobrar) * 100) / 100);
+  const faltante = Math.max(0, Math.round((montoCobrar - montoRecibido) * 100) / 100);
 
   const abrirModificadores = (p: Producto) => {
     setTocado(p.id);
@@ -404,7 +422,24 @@ function Caja() {
     }
     setPropinaTexto("0");
     setRecibidoTexto("");
+    setCalculadoraEfectivo(false);
     setCobroAbierto(true);
+  };
+
+  const escribirCalculadora = (tecla: string) => {
+    setRecibidoTexto((actual) => {
+      if (tecla === "borrar") return actual.slice(0, -1);
+      if (tecla === "limpiar") return "";
+      if (tecla === "." && actual.includes(".")) return actual;
+
+      const siguiente =
+        actual === "0" && tecla !== "."
+          ? tecla
+          : actual === "" && tecla === "."
+            ? "0."
+            : actual + tecla;
+      return /^\d{0,6}(?:\.\d{0,2})?$/.test(siguiente) ? siguiente : actual;
+    });
   };
 
   const confirmarCobro = () => {
@@ -434,9 +469,11 @@ function Caja() {
       montoRecibido,
       cambio,
       comensales,
+      folio: comandaPrevia?.folio,
     });
     setPreTicket(null);
-    setDocumentoCobrado("comanda");
+    setComandaPrevia(null);
+    setComandaAbierta(false);
     setTicketCobrado(pedido);
     setCobroAbierto(false);
     if (enLinea) {
@@ -460,6 +497,31 @@ function Caja() {
       referencia: `PRE-${ahora.getTime().toString().slice(-6)}`,
       fecha: ahora.toISOString(),
     });
+  };
+
+  const abrirComanda = () => {
+    if (items.length === 0) return;
+    const comensales = Math.floor(Number(comensalesTexto));
+    if (!Number.isFinite(comensales) || comensales < 1 || comensales > 99) {
+      toast.error("Ingresa entre 1 y 99 comensales");
+      return;
+    }
+
+    if (!comandaPrevia) {
+      setComandaPrevia({
+        folio: generarFolioPedido(),
+        cliente: cliente || (canal === "A mesa" ? "Mesa" : "Cliente"),
+        canal,
+        items: items.map((item) => ({
+          ...item,
+          opciones: item.opciones ? [...item.opciones] : undefined,
+        })),
+        total,
+        comensales,
+        creadoEn: new Date().toISOString(),
+      });
+    }
+    setComandaAbierta(true);
   };
 
   return (
@@ -616,9 +678,24 @@ function Caja() {
 
           <Button
             type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-3 w-full"
+            disabled={items.length === 0}
+            onClick={abrirComanda}
+          >
+            <Printer className="mr-1.5 h-4 w-4" />
+            Comandar
+          </Button>
+          <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+            Genera la orden para barra sin cobrar.
+          </p>
+
+          <Button
+            type="button"
             variant="outline"
             size="sm"
-            className="mt-3 w-full border-dashed"
+            className="mt-2 w-full border-dashed"
             disabled={items.length === 0}
             onClick={abrirPreTicket}
           >
@@ -851,15 +928,36 @@ function Caja() {
 
             {pago === "Efectivo" && (
               <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="monto-recibido">Efectivo recibido</Label>
+                <Label htmlFor="monto-recibido">Efectivo recibido</Label>
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => setRecibidoTexto(montoCobrar.toFixed(2))}
                   >
-                    Monto exacto
+                    Exacto
+                  </Button>
+                  {[100, 200, 500].map((billete) => (
+                    <Button
+                      key={billete}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecibidoTexto(String(billete))}
+                    >
+                      ${billete}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant={calculadoraEfectivo ? "secondary" : "outline"}
+                    size="sm"
+                    className="col-span-2"
+                    onClick={() => setCalculadoraEfectivo((abierta) => !abierta)}
+                  >
+                    <Calculator className="mr-1.5 h-4 w-4" />
+                    Calculadora
                   </Button>
                 </div>
                 <Input
@@ -873,6 +971,60 @@ function Caja() {
                   placeholder={montoCobrar.toFixed(2)}
                   autoFocus
                 />
+
+                {calculadoraEfectivo ? (
+                  <div className="rounded-xl border border-border bg-cream p-3">
+                    <div className="mb-2 rounded-lg border border-border bg-background px-3 py-2 text-right font-display text-xl font-bold">
+                      {mxnExacto(montoRecibido)}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((tecla) => (
+                        <Button
+                          key={tecla}
+                          type="button"
+                          variant="outline"
+                          className="bg-background text-base"
+                          onClick={() => escribirCalculadora(tecla)}
+                        >
+                          {tecla}
+                        </Button>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="bg-background text-base"
+                        aria-label="Borrar último número"
+                        onClick={() => escribirCalculadora("borrar")}
+                      >
+                        ⌫
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2 w-full"
+                      onClick={() => escribirCalculadora("limpiar")}
+                    >
+                      Limpiar
+                    </Button>
+                  </div>
+                ) : null}
+
+                <div
+                  className={`mt-1 flex items-center justify-between rounded-xl border px-4 py-3 ${
+                    faltante > 0
+                      ? "border-warning/50 bg-warning/10"
+                      : "border-primary/35 bg-primary/10"
+                  }`}
+                >
+                  <span className="text-sm font-semibold">
+                    {faltante > 0 ? "Falta por recibir" : "Cambio exacto"}
+                  </span>
+                  <span className="font-display text-2xl font-bold">
+                    {mxnExacto(faltante > 0 ? faltante : cambio)}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -880,10 +1032,6 @@ function Caja() {
               <div className="flex justify-between font-display text-xl font-bold">
                 <span>Monto a cobrar</span>
                 <span>{mxnExacto(montoCobrar)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Cambio</span>
-                <span className="font-semibold">{mxnExacto(cambio)}</span>
               </div>
             </div>
           </div>
@@ -896,6 +1044,39 @@ function Caja() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={comandaAbierta} onOpenChange={setComandaAbierta}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vista previa de la comanda</DialogTitle>
+            <DialogDescription>
+              Revisa la orden antes de enviarla a la impresora de barra.
+            </DialogDescription>
+          </DialogHeader>
+
+          {comandaPrevia ? (
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
+              <DetalleComanda comanda={comandaPrevia} />
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComandaAbierta(false)}>
+              Cerrar
+            </Button>
+            <Button onClick={() => window.print()} disabled={!comandaPrevia}>
+              <Printer className="mr-1.5 h-4 w-4" />
+              Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {comandaAbierta && comandaPrevia ? (
+        <div className="preticket-print">
+          <DetalleComanda comanda={comandaPrevia} />
+        </div>
+      ) : null}
 
       <Dialog open={preTicket !== null} onOpenChange={(abierto) => !abierto && setPreTicket(null)}>
         <DialogContent className="sm:max-w-md">
@@ -960,38 +1141,13 @@ function Caja() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Pedido registrado</DialogTitle>
+            <DialogTitle>Venta cobrada</DialogTitle>
             <DialogDescription>
-              Imprime la comanda para barra o cambia al ticket de venta para el cliente.
+              Revisa los datos del ticket antes de enviarlo a impresión.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 rounded-lg border border-border bg-cream p-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={documentoCobrado === "comanda" ? "default" : "ghost"}
-              onClick={() => setDocumentoCobrado("comanda")}
-            >
-              Comanda
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={documentoCobrado === "ticket" ? "default" : "ghost"}
-              onClick={() => setDocumentoCobrado("ticket")}
-            >
-              Ticket de venta
-            </Button>
-          </div>
-
-          {ticketCobrado && documentoCobrado === "comanda" && (
-            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
-              <DetalleComanda pedido={ticketCobrado} />
-            </div>
-          )}
-
-          {ticketCobrado && documentoCobrado === "ticket" && (
+          {ticketCobrado && (
             <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
               <DetalleTicket
                 referencia={ticketCobrado.folio}
@@ -1028,28 +1184,24 @@ function Caja() {
 
       {ticketCobrado && (
         <div className="preticket-print">
-          {documentoCobrado === "comanda" ? (
-            <DetalleComanda pedido={ticketCobrado} />
-          ) : (
-            <DetalleTicket
-              referencia={ticketCobrado.folio}
-              fecha={ticketCobrado.creadoEn}
-              cliente={ticketCobrado.cliente}
-              atendio={perfil?.nombre ?? "Personal Salúva"}
-              canal={ticketCobrado.canal}
-              items={ticketCobrado.items}
-              subtotal={ticketCobrado.subtotal}
-              iva={ticketCobrado.iva}
-              total={ticketCobrado.total}
-              negocio={negocio}
-              esVenta
-              metodoPago={ticketCobrado.metodoPago}
-              propina={ticketCobrado.propina ?? 0}
-              montoRecibido={ticketCobrado.montoRecibido ?? 0}
-              cambio={ticketCobrado.cambio ?? 0}
-              comensales={ticketCobrado.comensales}
-            />
-          )}
+          <DetalleTicket
+            referencia={ticketCobrado.folio}
+            fecha={ticketCobrado.creadoEn}
+            cliente={ticketCobrado.cliente}
+            atendio={perfil?.nombre ?? "Personal Salúva"}
+            canal={ticketCobrado.canal}
+            items={ticketCobrado.items}
+            subtotal={ticketCobrado.subtotal}
+            iva={ticketCobrado.iva}
+            total={ticketCobrado.total}
+            negocio={negocio}
+            esVenta
+            metodoPago={ticketCobrado.metodoPago}
+            propina={ticketCobrado.propina ?? 0}
+            montoRecibido={ticketCobrado.montoRecibido ?? 0}
+            cambio={ticketCobrado.cambio ?? 0}
+            comensales={ticketCobrado.comensales}
+          />
         </div>
       )}
     </AppShell>
