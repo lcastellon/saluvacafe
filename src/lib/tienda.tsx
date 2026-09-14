@@ -76,8 +76,29 @@ function idVenta() {
   );
 }
 
-function folioVenta() {
-  return `SLV-${Date.now().toString().slice(-7)}`;
+function claveFechaLocal(fecha: Date) {
+  return [
+    fecha.getFullYear(),
+    String(fecha.getMonth() + 1).padStart(2, "0"),
+    String(fecha.getDate()).padStart(2, "0"),
+  ].join("");
+}
+
+function folioVenta(pedidos: Pedido[], creadoEn: string) {
+  const fecha = new Date(creadoEn);
+  const clave = claveFechaLocal(fecha);
+  const prefijo = `SLV-${clave}-`;
+  const pedidosDelDia = pedidos.filter(
+    (pedido) => claveFechaLocal(new Date(pedido.creadoEn)) === clave,
+  );
+  const ultimoNumero = pedidosDelDia.reduce((mayor, pedido) => {
+    if (!pedido.folio.startsWith(prefijo)) return mayor;
+    const numero = Number(pedido.folio.slice(prefijo.length));
+    return Number.isInteger(numero) && numero > mayor ? numero : mayor;
+  }, 0);
+  const siguiente = Math.max(pedidosDelDia.length, ultimoNumero) + 1;
+
+  return `${prefijo}${String(siguiente).padStart(3, "0")}`;
 }
 
 function ventasDesdeNube(data: Json): Pedido[] {
@@ -337,7 +358,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         const creadoEn = new Date().toISOString();
         const nuevo: Pedido = {
           id: idVenta(),
-          folio: folioVenta(),
+          folio: folioVenta(pedidos, creadoEn),
           cliente: cliente || (canal === "A mesa" ? "Mesa" : "Cliente"),
           canal,
           metodoPago: enLinea ? metodoPago : "Efectivo",

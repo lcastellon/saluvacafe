@@ -215,6 +215,77 @@ function DetalleTicket({
   );
 }
 
+function numeroOrdenDesdeFolio(folio: string) {
+  const coincidencia = folio.match(/^SLV-\d{8}-(\d+)$/);
+  if (!coincidencia) return folio;
+  return String(Number(coincidencia[1]));
+}
+
+function DetalleComanda({ pedido }: { pedido: Pedido }) {
+  const fecha = new Date(pedido.creadoEn);
+  const servicio = pedido.canal === "A mesa" ? "CONSUMIR AQUÍ" : pedido.canal.toUpperCase();
+
+  return (
+    <div className="font-mono text-[13px] leading-snug text-black">
+      <div className="border-b border-dashed border-black pb-3 text-center">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em]">Comanda de barra</p>
+        <p className="mt-1 text-3xl font-black">ORDEN #{numeroOrdenDesdeFolio(pedido.folio)}</p>
+      </div>
+
+      <div className="my-3 space-y-1">
+        <div className="flex justify-between gap-3">
+          <span>Comensales</span>
+          <span className="font-bold">{pedido.comensales}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Fecha</span>
+          <span>{fecha.toLocaleDateString("es-MX")}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Hora</span>
+          <span>{fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+      </div>
+
+      <div className="my-5 border-y-2 border-black py-3 text-center">
+        <p className="text-lg font-black tracking-[0.08em]">{servicio}</p>
+        <p className="mt-2 break-words text-2xl font-black uppercase">
+          {pedido.cliente.trim() || "SIN NOMBRE"}
+        </p>
+      </div>
+
+      <div>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 border-b border-black pb-1 text-[11px] font-bold uppercase">
+          <span>Cant.</span>
+          <span>Producto</span>
+          <span className="text-right">Total</span>
+        </div>
+        <div className="divide-y divide-dashed divide-black/50">
+          {pedido.items.map((item) => (
+            <div key={item.lineaId ?? item.productoId} className="py-2">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 font-bold">
+                <span>{item.cantidad}</span>
+                <span className="break-words">{item.nombre}</span>
+                <span className="text-right">{mxnExacto(item.precio * item.cantidad)}</span>
+              </div>
+              {item.opciones && item.opciones.length > 0 ? (
+                <p className="ml-8 mt-1 break-words text-[11px] font-medium">
+                  {item.opciones.join(" · ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex justify-between border-t-2 border-black pt-2 text-lg font-black">
+        <span>TOTAL</span>
+        <span>{mxnExacto(pedido.total)}</span>
+      </div>
+    </div>
+  );
+}
+
 function Caja() {
   const { perfil } = useAuth();
   const { cajaActual, terminalAutorizada, cargandoCaja } = useCajaTurno();
@@ -232,6 +303,7 @@ function Caja() {
   const [propinaTexto, setPropinaTexto] = useState("0");
   const [recibidoTexto, setRecibidoTexto] = useState("");
   const [ticketCobrado, setTicketCobrado] = useState<Pedido | null>(null);
+  const [documentoCobrado, setDocumentoCobrado] = useState<"comanda" | "ticket">("comanda");
 
   useEffect(() => {
     if (!enLinea) setPago("Efectivo");
@@ -364,6 +436,7 @@ function Caja() {
       comensales,
     });
     setPreTicket(null);
+    setDocumentoCobrado("comanda");
     setTicketCobrado(pedido);
     setCobroAbierto(false);
     if (enLinea) {
@@ -887,13 +960,38 @@ function Caja() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Venta cobrada</DialogTitle>
+            <DialogTitle>Pedido registrado</DialogTitle>
             <DialogDescription>
-              Revisa los datos del ticket antes de enviarlo a impresión.
+              Imprime la comanda para barra o cambia al ticket de venta para el cliente.
             </DialogDescription>
           </DialogHeader>
 
-          {ticketCobrado && (
+          <div className="grid grid-cols-2 rounded-lg border border-border bg-cream p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={documentoCobrado === "comanda" ? "default" : "ghost"}
+              onClick={() => setDocumentoCobrado("comanda")}
+            >
+              Comanda
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={documentoCobrado === "ticket" ? "default" : "ghost"}
+              onClick={() => setDocumentoCobrado("ticket")}
+            >
+              Ticket de venta
+            </Button>
+          </div>
+
+          {ticketCobrado && documentoCobrado === "comanda" && (
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
+              <DetalleComanda pedido={ticketCobrado} />
+            </div>
+          )}
+
+          {ticketCobrado && documentoCobrado === "ticket" && (
             <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-white p-5 shadow-inner">
               <DetalleTicket
                 referencia={ticketCobrado.folio}
@@ -930,24 +1028,28 @@ function Caja() {
 
       {ticketCobrado && (
         <div className="preticket-print">
-          <DetalleTicket
-            referencia={ticketCobrado.folio}
-            fecha={ticketCobrado.creadoEn}
-            cliente={ticketCobrado.cliente}
-            atendio={perfil?.nombre ?? "Personal Salúva"}
-            canal={ticketCobrado.canal}
-            items={ticketCobrado.items}
-            subtotal={ticketCobrado.subtotal}
-            iva={ticketCobrado.iva}
-            total={ticketCobrado.total}
-            negocio={negocio}
-            esVenta
-            metodoPago={ticketCobrado.metodoPago}
-            propina={ticketCobrado.propina ?? 0}
-            montoRecibido={ticketCobrado.montoRecibido ?? 0}
-            cambio={ticketCobrado.cambio ?? 0}
-            comensales={ticketCobrado.comensales}
-          />
+          {documentoCobrado === "comanda" ? (
+            <DetalleComanda pedido={ticketCobrado} />
+          ) : (
+            <DetalleTicket
+              referencia={ticketCobrado.folio}
+              fecha={ticketCobrado.creadoEn}
+              cliente={ticketCobrado.cliente}
+              atendio={perfil?.nombre ?? "Personal Salúva"}
+              canal={ticketCobrado.canal}
+              items={ticketCobrado.items}
+              subtotal={ticketCobrado.subtotal}
+              iva={ticketCobrado.iva}
+              total={ticketCobrado.total}
+              negocio={negocio}
+              esVenta
+              metodoPago={ticketCobrado.metodoPago}
+              propina={ticketCobrado.propina ?? 0}
+              montoRecibido={ticketCobrado.montoRecibido ?? 0}
+              cambio={ticketCobrado.cambio ?? 0}
+              comensales={ticketCobrado.comensales}
+            />
+          )}
         </div>
       )}
     </AppShell>
