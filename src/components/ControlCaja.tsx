@@ -349,6 +349,7 @@ export function ControlCaja() {
     cajaActual,
     terminalAutorizada,
     terminalNombre,
+    terminalSucursalId,
     terminalSucursalNombre,
     cargandoCaja,
     errorCaja,
@@ -451,7 +452,10 @@ export function ControlCaja() {
       const corte = crearCorte({
         caja: cajaActual,
         pedidos,
-        direccion: sucursal?.direccion || negocio.direccion,
+        direccion:
+          cajaActual.sucursalId === terminalSucursalId
+            ? negocio.direccion
+            : sucursal?.direccion || negocio.direccion,
         efectivoContado: efectivoRedondeado,
         notas,
         cerradoPor: perfil?.nombre ?? "Personal Salúva",
@@ -691,18 +695,27 @@ export function ControlCaja() {
                 automáticamente.
               </DialogDescription>
             </DialogHeader>
-            <div className="my-5 grid gap-2">
-              <Label htmlFor="fondo-inicial">Fondo inicial en efectivo</Label>
-              <Input
-                id="fondo-inicial"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={fondoInicial}
-                onChange={(evento) => setFondoInicial(evento.target.value)}
-                autoFocus
-              />
+            <div className="my-5 grid gap-4">
+              <div className="rounded-lg border border-border bg-cream px-3 py-3">
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                  Sucursal asignada
+                </p>
+                <p className="mt-1 font-semibold">{terminalSucursalNombre}</p>
+                <p className="text-sm text-muted-foreground">{terminalNombre}</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fondo-inicial">Fondo inicial en efectivo</Label>
+                <Input
+                  id="fondo-inicial"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={fondoInicial}
+                  onChange={(evento) => setFondoInicial(evento.target.value)}
+                  autoFocus
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogo(null)}>

@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { DoodleBolsa, DoodleTicket, DoodleTrazo } from "@/components/doodles";
 import { useTienda } from "@/lib/tienda";
+import { useCajaTurno } from "@/lib/caja-turno";
 import { cambiarCodigoPropio } from "@/lib/personal.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,8 +34,10 @@ export const Route = createFileRoute("/_authenticated/_admin/configuracion")({
 });
 
 function Configuracion() {
-  const { negocio, guardarNegocio, enLinea, cargandoLocal } = useTienda();
+  const { negocio, guardarNegocio, enLinea, cargandoLocal, cargandoConfiguracion } = useTienda();
+  const { terminalAutorizada, terminalNombre, terminalSucursalNombre } = useCajaTurno();
   const [form, setForm] = useState(negocio);
+  const [formSucio, setFormSucio] = useState(false);
   const [imprimir, setImprimir] = useState(true);
   const [alertas, setAlertas] = useState(true);
   const [codigoActual, setCodigoActual] = useState("");
@@ -43,15 +46,19 @@ function Configuracion() {
   const cambiarCodigo = useServerFn(cambiarCodigoPropio);
   const navigate = useNavigate();
 
-  useEffect(() => setForm(negocio), [negocio]);
+  useEffect(() => {
+    if (!formSucio) setForm(negocio);
+  }, [formSucio, negocio]);
 
   const mensajeConfiguracion = (error: unknown) => {
     if (error instanceof Error) {
       if (
         error.message.includes("pos_configuracion") ||
+        error.message.includes("configuracion_terminal_pos") ||
+        error.message.includes("guardar_configuracion_terminal_pos") ||
         error.message.toLowerCase().includes("schema cache")
       ) {
-        return "Falta aplicar la migración de configuración y notas en Supabase.";
+        return "Falta aplicar la migración que unifica Configuración con la sucursal.";
       }
       return error.message;
     }
@@ -60,7 +67,11 @@ function Configuracion() {
 
   const guardarConfiguracion = useMutation({
     mutationFn: () => guardarNegocio(form),
-    onSuccess: () => toast.success("Configuración guardada"),
+    onSuccess: (guardado) => {
+      setForm(guardado);
+      setFormSucio(false);
+      toast.success("Configuración guardada en Supabase");
+    },
     onError: (error) => toast.error(mensajeConfiguracion(error)),
   });
 
@@ -84,9 +95,14 @@ function Configuracion() {
         id={k}
         type={type}
         value={String(form[k])}
-        onChange={(e) =>
-          setForm({ ...form, [k]: type === "number" ? Number(e.target.value) : e.target.value })
-        }
+        disabled={cargandoConfiguracion || !terminalAutorizada}
+        onChange={(e) => {
+          setForm((actual) => ({
+            ...actual,
+            [k]: type === "number" ? Number(e.target.value) : e.target.value,
+          }));
+          setFormSucio(true);
+        }}
       />
     </div>
   );
@@ -99,6 +115,15 @@ function Configuracion() {
             <DoodleBolsa className="h-5 w-5 text-primary" />
             Datos de la sucursal
           </h2>
+          {terminalAutorizada ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Configurando {terminalSucursalNombre} desde {terminalNombre}.
+            </p>
+          ) : (
+            <p className="mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+              Autoriza este dispositivo y asígnalo a una sucursal antes de editar sus datos.
+            </p>
+          )}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {campo("nombre", "Nombre comercial")}
             {campo("sucursal", "Sucursal")}
@@ -207,13 +232,32 @@ function Configuracion() {
       <div className="mt-5 flex flex-wrap gap-2">
         <Button
           onClick={() => guardarConfiguracion.mutate()}
-          disabled={!enLinea || cargandoLocal || guardarConfiguracion.isPending}
+          disabled={
+            !enLinea ||
+            cargandoLocal ||
+            cargandoConfiguracion ||
+            !terminalAutorizada ||
+            !formSucio ||
+            guardarConfiguracion.isPending
+          }
         >
           {guardarConfiguracion.isPending ? "Guardando…" : "Guardar cambios"}
         </Button>
-        <Button variant="outline" onClick={() => setForm(negocio)}>
+        <Button
+          variant="outline"
+          disabled={cargandoConfiguracion || guardarConfiguracion.isPending}
+          onClick={() => {
+            setForm(negocio);
+            setFormSucio(false);
+          }}
+        >
           Descartar
         </Button>
+        {cargandoConfiguracion ? (
+          <p className="self-center text-sm text-muted-foreground">
+            Recuperando los datos guardados…
+          </p>
+        ) : null}
       </div>
     </AppShell>
   );

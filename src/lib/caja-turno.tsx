@@ -10,7 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
-import { cargarTokenTerminal, guardarTokenTerminal } from "@/lib/offline-db";
+import { cargarTokenTerminal, guardarTokenTerminal, type NegocioLocal } from "@/lib/offline-db";
 
 export type CajaActual = {
   id: string;
@@ -28,11 +28,14 @@ export type Sucursal = {
   id: string;
   nombre: string;
   direccion: string;
+  telefono: string;
+  horario: string;
 };
 
 type EstadoCaja = {
   terminalAutorizada: boolean;
   terminalNombre: string | null;
+  terminalSucursalId: string | null;
   terminalSucursalNombre: string | null;
   cajaActual: CajaActual | null;
 };
@@ -44,6 +47,8 @@ type Ctx = EstadoCaja & {
   refrescarCaja: () => Promise<void>;
   crearSucursal: (nombre: string, direccion: string) => Promise<void>;
   autorizarTerminal: (nombre: string, sucursalId: string) => Promise<void>;
+  cargarConfiguracionSucursal: () => Promise<NegocioLocal>;
+  guardarConfiguracionSucursal: (negocio: NegocioLocal) => Promise<NegocioLocal>;
   abrirCaja: (fondoInicial: number) => Promise<void>;
   cerrarCaja: (efectivoContado: number, notas: string) => Promise<void>;
 };
@@ -55,6 +60,7 @@ let cargaTokenTerminal: Promise<string> | null = null;
 const estadoInicial: EstadoCaja = {
   terminalAutorizada: false,
   terminalNombre: null,
+  terminalSucursalId: null,
   terminalSucursalNombre: null,
   cajaActual: null,
 };
@@ -145,6 +151,8 @@ function interpretarEstado(data: Json): EstadoCaja {
     terminalAutorizada: respuesta["terminalAutorizada"] === true,
     terminalNombre:
       typeof respuesta["terminalNombre"] === "string" ? respuesta["terminalNombre"] : null,
+    terminalSucursalId:
+      typeof respuesta["terminalSucursalId"] === "string" ? respuesta["terminalSucursalId"] : null,
     terminalSucursalNombre:
       typeof respuesta["terminalSucursalNombre"] === "string"
         ? respuesta["terminalSucursalNombre"]
@@ -169,9 +177,35 @@ function interpretarSucursales(data: Json): Sucursal[] {
         id: registro["id"],
         nombre: registro["nombre"],
         direccion: typeof registro["direccion"] === "string" ? registro["direccion"] : "",
+        telefono: typeof registro["telefono"] === "string" ? registro["telefono"] : "",
+        horario: typeof registro["horario"] === "string" ? registro["horario"] : "",
       },
     ];
   });
+}
+
+function interpretarConfiguracion(data: Json): NegocioLocal {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("Supabase no devolvió la configuración de esta sucursal.");
+  }
+  const registro = data as Record<string, Json | undefined>;
+  const texto = (campo: string) =>
+    typeof registro[campo] === "string" ? String(registro[campo]) : "";
+  const numero = (campo: string, respaldo: number) => {
+    const valor = Number(registro[campo]);
+    return Number.isFinite(valor) ? valor : respaldo;
+  };
+
+  return {
+    nombre: texto("nombre") || "Salúva",
+    sucursal: texto("sucursal"),
+    direccion: texto("direccion"),
+    telefono: texto("telefono"),
+    horario: texto("horario"),
+    iva: numero("iva", 16),
+    propinaSugerida: numero("propinaSugerida", 10),
+    moneda: texto("moneda") || "MXN",
+  };
 }
 
 function mensajeDeError(error: unknown) {
@@ -263,6 +297,41 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
     [aplicarEstado],
   );
 
+  const cargarConfiguracionSucursal = useCallback(async () => {
+    if (!navigator.onLine) {
+      throw new Error("Necesitas conexión para recuperar la configuración de la sucursal.");
+    }
+    const token = await obtenerTokenTerminal();
+    const { data, error } = await ejecutarRpc("configuracion_terminal_pos", { p_token: token });
+    if (error) throw new Error(mensajeDeError(error));
+    return interpretarConfiguracion(data);
+  }, []);
+
+  const guardarConfiguracionSucursal = useCallback(
+    async (negocio: NegocioLocal) => {
+      if (!navigator.onLine) {
+        throw new Error("Necesitas conexión para guardar la configuración de la sucursal.");
+      }
+      const token = await obtenerTokenTerminal();
+      const { data, error } = await ejecutarRpc("guardar_configuracion_terminal_pos", {
+        p_token: token,
+        p_nombre_comercial: negocio.nombre.trim(),
+        p_sucursal_nombre: negocio.sucursal.trim(),
+        p_direccion: negocio.direccion.trim(),
+        p_telefono: negocio.telefono.trim(),
+        p_horario: negocio.horario.trim(),
+        p_iva: negocio.iva,
+        p_propina_sugerida: negocio.propinaSugerida,
+        p_moneda: negocio.moneda.trim(),
+      });
+      if (error) throw new Error(mensajeDeError(error));
+      const guardado = interpretarConfiguracion(data);
+      await refrescarCaja();
+      return guardado;
+    },
+    [refrescarCaja],
+  );
+
   const value = useMemo<Ctx>(
     () => ({
       ...estado,
@@ -284,6 +353,8 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
           p_nombre: nombre.trim() || "Caja 1",
           p_sucursal_id: sucursalId,
         }),
+      cargarConfiguracionSucursal,
+      guardarConfiguracionSucursal,
       abrirCaja: (fondoInicial) =>
         ejecutarAccion("abrir_caja_pos", { p_fondo_inicial: fondoInicial }),
       cerrarCaja: (efectivoContado, notas) =>
@@ -292,7 +363,16 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
           p_notas: notas.trim(),
         }),
     }),
-    [cargandoCaja, errorCaja, estado, ejecutarAccion, refrescarCaja, sucursales],
+    [
+      cargandoCaja,
+      cargarConfiguracionSucursal,
+      errorCaja,
+      estado,
+      ejecutarAccion,
+      guardarConfiguracionSucursal,
+      refrescarCaja,
+      sucursales,
+    ],
   );
 
   return <CajaTurnoContext.Provider value={value}>{children}</CajaTurnoContext.Provider>;

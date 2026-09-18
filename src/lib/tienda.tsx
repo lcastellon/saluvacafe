@@ -17,7 +17,7 @@ import {
   type Producto,
 } from "@/data/saluva";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { useCajaTurno } from "@/lib/caja-turno";
 import {
@@ -39,9 +39,10 @@ type Ctx = {
   negocio: Negocio;
   enLinea: boolean;
   cargandoLocal: boolean;
+  cargandoConfiguracion: boolean;
   pendientesSincronizar: number;
   sincronizarAhora: () => Promise<void>;
-  guardarNegocio: (n: Negocio) => Promise<void>;
+  guardarNegocio: (n: Negocio) => Promise<Negocio>;
   toggleProducto: (id: string) => void;
   actualizarPrecio: (id: string, precio: number) => void;
   crearProducto: (p: Omit<Producto, "id">) => void;
@@ -186,24 +187,15 @@ function ejecutarRpc(nombre: string, argumentos?: Record<string, Json>): Promise
   return cliente.rpc(nombre, argumentos);
 }
 
-function negocioDesdeNube(
-  registro: Database["public"]["Tables"]["pos_configuracion"]["Row"],
-): Negocio {
-  return {
-    nombre: registro.nombre,
-    sucursal: registro.sucursal,
-    direccion: registro.direccion,
-    telefono: registro.telefono,
-    horario: registro.horario,
-    iva: Number(registro.iva),
-    propinaSugerida: Number(registro.propina_sugerida),
-    moneda: registro.moneda,
-  };
-}
-
 export function TiendaProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
-  const { cajaActual } = useCajaTurno();
+  const {
+    cajaActual,
+    terminalAutorizada,
+    terminalSucursalId,
+    cargarConfiguracionSucursal,
+    guardarConfiguracionSucursal,
+  } = useCajaTurno();
   const [productos, setProductos] = useState<Producto[]>(productosSeed);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [comandas, setComandas] = useState<Comanda[]>([]);
@@ -216,8 +208,10 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const [cargandoLocal, setCargandoLocal] = useState(true);
+  const [cargandoConfiguracion, setCargandoConfiguracion] = useState(true);
   const [pendientesSincronizar, setPendientesSincronizar] = useState(0);
   const sincronizando = useRef(false);
+  const solicitudConfiguracion = useRef(0);
 
   useEffect(() => {
     comandasRef.current = comandas;
@@ -268,29 +262,41 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
   }, [cargandoLocal, comandas, comandasEliminadas, negocio, pedidos, productos]);
 
   useEffect(() => {
-    if (cargandoLocal || !enLinea || !session) return;
+    if (cargandoLocal) return;
+    const solicitud = ++solicitudConfiguracion.current;
+    if (!enLinea || !session || !terminalAutorizada || !terminalSucursalId) {
+      setCargandoConfiguracion(false);
+      return;
+    }
     let activo = true;
+    setCargandoConfiguracion(true);
 
-    void supabase
-      .from("pos_configuracion")
-      .select(
-        "nombre, sucursal, direccion, telefono, horario, iva, propina_sugerida, moneda, id, actualizado_por, actualizado_en",
-      )
-      .eq("id", "negocio")
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!activo) return;
-        if (error) {
-          console.warn("No fue posible cargar la configuración compartida", error);
-          return;
+    void cargarConfiguracionSucursal()
+      .then((data) => {
+        if (!activo || solicitud !== solicitudConfiguracion.current) return;
+        setNegocio(data);
+      })
+      .catch((error) => {
+        if (!activo || solicitud !== solicitudConfiguracion.current) return;
+        console.warn("No fue posible cargar la configuración de la sucursal", error);
+      })
+      .finally(() => {
+        if (activo && solicitud === solicitudConfiguracion.current) {
+          setCargandoConfiguracion(false);
         }
-        if (data) setNegocio(negocioDesdeNube(data));
       });
 
     return () => {
       activo = false;
     };
-  }, [cargandoLocal, enLinea, session]);
+  }, [
+    cargandoLocal,
+    cargarConfiguracionSucursal,
+    enLinea,
+    session,
+    terminalAutorizada,
+    terminalSucursalId,
+  ]);
 
   const guardarNegocio = useCallback(
     async (siguiente: Negocio) => {
@@ -299,40 +305,26 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         throw new Error("Necesitas conexión para guardar la configuración del negocio.");
       }
 
-      const { error } = await supabase.from("pos_configuracion").upsert({
-        id: "negocio",
-        nombre: siguiente.nombre.trim(),
-        sucursal: siguiente.sucursal.trim(),
-        direccion: siguiente.direccion.trim(),
-        telefono: siguiente.telefono.trim(),
-        horario: siguiente.horario.trim(),
-        iva: siguiente.iva,
-        propina_sugerida: siguiente.propinaSugerida,
-        moneda: siguiente.moneda.trim(),
-        actualizado_por: session.user.id,
-        actualizado_en: new Date().toISOString(),
-      });
-      if (error) throw error;
-
-      const normalizado: Negocio = {
-        ...siguiente,
-        nombre: siguiente.nombre.trim(),
-        sucursal: siguiente.sucursal.trim(),
-        direccion: siguiente.direccion.trim(),
-        telefono: siguiente.telefono.trim(),
-        horario: siguiente.horario.trim(),
-        moneda: siguiente.moneda.trim(),
-      };
-      setNegocio(normalizado);
-      await guardarSnapshot({
-        productos,
-        pedidos,
-        comandas,
-        comandasEliminadas,
-        negocio: normalizado,
-      });
+      const solicitud = ++solicitudConfiguracion.current;
+      setCargandoConfiguracion(true);
+      try {
+        const normalizado = await guardarConfiguracionSucursal(siguiente);
+        setNegocio(normalizado);
+        await guardarSnapshot({
+          productos,
+          pedidos,
+          comandas,
+          comandasEliminadas,
+          negocio: normalizado,
+        });
+        return normalizado;
+      } finally {
+        if (solicitud === solicitudConfiguracion.current) {
+          setCargandoConfiguracion(false);
+        }
+      }
     },
-    [comandas, comandasEliminadas, pedidos, productos, session],
+    [comandas, comandasEliminadas, guardarConfiguracionSucursal, pedidos, productos, session],
   );
 
   const sincronizarAhora = useCallback(async () => {
@@ -450,6 +442,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       negocio,
       enLinea,
       cargandoLocal,
+      cargandoConfiguracion,
       pendientesSincronizar,
       sincronizarAhora,
       guardarNegocio,
@@ -562,6 +555,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
     }),
     [
       cargandoLocal,
+      cargandoConfiguracion,
       cajaActual?.id,
       comandas,
       comandaSeleccionada,
