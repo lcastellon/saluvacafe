@@ -514,7 +514,9 @@ function Caja() {
       montoRecibido,
       cambio,
       comensales,
-      folio: folioComandaActiva ?? comandaPrevia?.folio,
+      ...(folioComandaActiva ?? comandaPrevia?.folio
+        ? { folio: (folioComandaActiva ?? comandaPrevia?.folio) as string }
+        : {}),
       estado: estadoComandaActiva,
     });
     if (comandaActivaId) eliminarComanda(comandaActivaId);
