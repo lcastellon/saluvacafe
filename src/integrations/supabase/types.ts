@@ -215,27 +215,39 @@ export type Database = {
       pos_sucursales: {
         Row: {
           activa: boolean
+          actualizada_en: string
+          actualizada_por: string | null
           creada_en: string
           creada_por: string | null
           direccion: string
+          horario: string
           id: string
           nombre: string
+          telefono: string
         }
         Insert: {
           activa?: boolean
+          actualizada_en?: string
+          actualizada_por?: string | null
           creada_en?: string
           creada_por?: string | null
           direccion?: string
+          horario?: string
           id?: string
           nombre: string
+          telefono?: string
         }
         Update: {
           activa?: boolean
+          actualizada_en?: string
+          actualizada_por?: string | null
           creada_en?: string
           creada_por?: string | null
           direccion?: string
+          horario?: string
           id?: string
           nombre?: string
+          telefono?: string
         }
         Relationships: []
       }
@@ -431,11 +443,26 @@ export type Database = {
         Args: { p_efectivo_contado: number; p_notas?: string; p_token: string }
         Returns: Json
       }
+      configuracion_terminal_pos: { Args: { p_token: string }; Returns: Json }
       crear_sucursal_pos: {
         Args: { p_direccion?: string; p_nombre: string }
         Returns: Json
       }
       estado_terminal_caja: { Args: { p_token: string }; Returns: Json }
+      guardar_configuracion_terminal_pos: {
+        Args: {
+          p_direccion: string
+          p_horario: string
+          p_iva: number
+          p_moneda: string
+          p_nombre_comercial: string
+          p_propina_sugerida: number
+          p_sucursal_nombre: string
+          p_telefono: string
+          p_token: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
