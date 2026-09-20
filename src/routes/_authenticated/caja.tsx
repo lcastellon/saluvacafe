@@ -560,8 +560,8 @@ function Caja() {
     }
 
     const guardada = guardarComanda({
-      id: comandaActivaId ?? undefined,
-      folio: folioComandaActiva ?? undefined,
+      ...(comandaActivaId ? { id: comandaActivaId } : {}),
+      ...(folioComandaActiva ? { folio: folioComandaActiva } : {}),
       cliente,
       canal,
       items,
