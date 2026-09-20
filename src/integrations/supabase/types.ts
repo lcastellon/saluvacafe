@@ -449,6 +449,20 @@ export type Database = {
         Returns: Json
       }
       estado_terminal_caja: { Args: { p_token: string }; Returns: Json }
+      guardar_configuracion_terminal_pos: {
+        Args: {
+          p_direccion: string
+          p_horario: string
+          p_iva: number
+          p_moneda: string
+          p_nombre_comercial: string
+          p_propina_sugerida: number
+          p_sucursal_nombre: string
+          p_telefono: string
+          p_token: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -464,20 +478,6 @@ export type Database = {
       }
       reporte_productos_periodo_pos: {
         Args: { p_desde: string; p_hasta: string; p_sucursal_id?: string }
-        Returns: Json
-      }
-      guardar_configuracion_terminal_pos: {
-        Args: {
-          p_direccion: string
-          p_horario: string
-          p_iva: number
-          p_moneda: string
-          p_nombre_comercial: string
-          p_propina_sugerida: number
-          p_sucursal_nombre: string
-          p_telefono: string
-          p_token: string
-        }
         Returns: Json
       }
       sincronizar_venta_pos: { Args: { p_venta: Json }; Returns: string }

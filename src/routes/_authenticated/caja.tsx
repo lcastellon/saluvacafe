@@ -345,7 +345,7 @@ function Caja() {
     setItems(
       comandaSeleccionada.items.map((item) => ({
         ...item,
-        opciones: item.opciones ? [...item.opciones] : undefined,
+        ...(item.opciones ? { opciones: [...item.opciones] } : {}),
       })),
     );
     setCliente(comandaSeleccionada.cliente);
@@ -514,7 +514,9 @@ function Caja() {
       montoRecibido,
       cambio,
       comensales,
-      folio: folioComandaActiva ?? comandaPrevia?.folio,
+      ...(folioComandaActiva ?? comandaPrevia?.folio
+        ? { folio: (folioComandaActiva ?? comandaPrevia?.folio) as string }
+        : {}),
       estado: estadoComandaActiva,
     });
     if (comandaActivaId) eliminarComanda(comandaActivaId);
@@ -558,8 +560,8 @@ function Caja() {
     }
 
     const guardada = guardarComanda({
-      id: comandaActivaId ?? undefined,
-      folio: folioComandaActiva ?? undefined,
+      ...(comandaActivaId ? { id: comandaActivaId } : {}),
+      ...(folioComandaActiva ? { folio: folioComandaActiva } : {}),
       cliente,
       canal,
       items,
