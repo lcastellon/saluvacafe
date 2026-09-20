@@ -345,7 +345,7 @@ function Caja() {
     setItems(
       comandaSeleccionada.items.map((item) => ({
         ...item,
-        opciones: item.opciones ? [...item.opciones] : undefined,
+        ...(item.opciones ? { opciones: [...item.opciones] } : {}),
       })),
     );
     setCliente(comandaSeleccionada.cliente);
