@@ -7,9 +7,9 @@ import { useCajaTurno } from "@/lib/caja-turno";
 import {
   mxnExacto,
   esBebida,
-  TAMANOS,
   LECHES,
   EXTRA_SHOT,
+  desglosarIvaIncluido,
   type Categoria,
   type LineaPedido,
   type Pedido,
@@ -53,11 +53,12 @@ export const Route = createFileRoute("/_authenticated/caja")({
 
 const categorias: (Categoria | "Todo")[] = [
   "Todo",
-  "Café caliente",
-  "Café frío",
-  "Infusiones",
+  "Espresso",
+  "Cold brew",
+  "Filtrados",
+  "Matcha y hōjicha",
+  "Bebidas extra",
   "Panadería",
-  "Desayunos",
 ];
 
 function DetalleTicket({
@@ -171,7 +172,7 @@ function DetalleTicket({
           <span>{mxnExacto(subtotal)}</span>
         </div>
         <div className="flex justify-between">
-          <span>IVA ({negocio.iva}%)</span>
+          <span>IVA incluido ({negocio.iva}%)</span>
           <span>{mxnExacto(iva)}</span>
         </div>
         <div className="mt-2 flex justify-between border-t border-black pt-2 text-base font-bold">
@@ -362,8 +363,8 @@ function Caja() {
 
   // Modificadores
   const [enModificadores, setEnModificadores] = useState<Producto | null>(null);
-  const [tamano, setTamano] = useState("Mediano");
-  const [leche, setLeche] = useState("Entera");
+  const [leche, setLeche] = useState("Sin cambio");
+  const [precioPersonalizado, setPrecioPersonalizado] = useState("");
   const [extraShot, setExtraShot] = useState(false);
   const [sinAzucar, setSinAzucar] = useState(false);
   const [paraLlevar, setParaLlevar] = useState(false);
@@ -379,9 +380,9 @@ function Caja() {
     [productos, cat, busqueda],
   );
 
-  const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
-  const iva = subtotal * (negocio.iva / 100);
-  const total = subtotal + iva;
+  const { subtotal, iva, total } = desglosarIvaIncluido(
+    items.reduce((s, i) => s + i.precio * i.cantidad, 0),
+  );
   const propinaIngresada = Number(propinaTexto);
   const propina =
     Number.isFinite(propinaIngresada) && propinaIngresada >= 0
@@ -401,8 +402,8 @@ function Caja() {
   const abrirModificadores = (p: Producto) => {
     setTocado(p.id);
     setTimeout(() => setTocado((current) => (current === p.id ? null : current)), 180);
-    setTamano("Mediano");
-    setLeche("Entera");
+    setLeche("Sin cambio");
+    setPrecioPersonalizado(String(p.precio));
     setExtraShot(false);
     setSinAzucar(false);
     setParaLlevar(canal !== "A mesa");
@@ -413,14 +414,24 @@ function Caja() {
     const p = enModificadores;
     if (!p) return;
     const bebida = esBebida(p.categoria);
-    const extraTamano = bebida ? (TAMANOS.find((t) => t.valor === tamano)?.extra ?? 0) : 0;
     const extraLeche = bebida ? (LECHES.find((l) => l.valor === leche)?.extra ?? 0) : 0;
     const extraShotPrecio = bebida && extraShot ? EXTRA_SHOT : 0;
-    const precio = Math.max(0, p.precio + extraTamano + extraLeche + extraShotPrecio);
+    const precioBase = p.precioMaximo ? Number(precioPersonalizado) : p.precio;
+    if (
+      !Number.isFinite(precioBase) ||
+      precioBase < p.precio ||
+      (p.precioMaximo !== undefined && precioBase > p.precioMaximo)
+    ) {
+      toast.error(
+        `El precio debe estar entre ${mxnExacto(p.precio)} y ${mxnExacto(p.precioMaximo ?? p.precio)}`,
+      );
+      return;
+    }
+    const precio = Math.max(0, precioBase + extraLeche + extraShotPrecio);
 
     const opciones: string[] = [];
     if (bebida) {
-      opciones.push(tamano, `Leche ${leche.toLowerCase()}`);
+      if (leche !== "Sin cambio") opciones.push(`Leche de ${leche.toLowerCase()}`);
       if (extraShot) opciones.push("Extra shot");
       if (sinAzucar) opciones.push("Sin azúcar");
     } else if (sinAzucar) {
@@ -428,7 +439,7 @@ function Caja() {
     }
     opciones.push(paraLlevar ? "Para llevar" : "Consumir aquí");
 
-    const firma = `${p.id}|${opciones.join(",")}`;
+    const firma = `${p.id}|${precioBase}|${opciones.join(",")}`;
     setItems((prev) => {
       const found = prev.find((i) => i.lineaId === firma);
       if (found)
@@ -629,7 +640,11 @@ function Caja() {
                 </div>
                 <p className="mt-3 font-medium leading-tight">{p.nombre}</p>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.descripcion}</p>
-                <p className="mt-3 font-display text-xl">{mxnExacto(p.precio)}</p>
+                <p className="mt-3 font-display text-xl">
+                  {p.precioMaximo
+                    ? `${mxnExacto(p.precio)}–${mxnExacto(p.precioMaximo)}`
+                    : mxnExacto(p.precio)}
+                </p>
               </button>
             ))}
             {visibles.length === 0 && (
@@ -770,7 +785,7 @@ function Caja() {
               <span>{mxnExacto(subtotal)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
-              <span>IVA ({negocio.iva}%)</span>
+              <span>IVA incluido ({negocio.iva}%)</span>
               <span>{mxnExacto(iva)}</span>
             </div>
             <div className="flex justify-between pt-1 font-display text-2xl font-bold">
@@ -843,37 +858,31 @@ function Caja() {
 
           {enModificadores && (
             <div className="grid gap-4">
+              {enModificadores.precioMaximo ? (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="precio-variable">Precio del grano invitado</Label>
+                  <Input
+                    id="precio-variable"
+                    type="number"
+                    inputMode="decimal"
+                    min={enModificadores.precio}
+                    max={enModificadores.precioMaximo}
+                    step="1"
+                    value={precioPersonalizado}
+                    onChange={(evento) => setPrecioPersonalizado(evento.target.value)}
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    De {mxnExacto(enModificadores.precio)} a{" "}
+                    {mxnExacto(enModificadores.precioMaximo)} según el grano.
+                  </p>
+                </div>
+              ) : null}
               {esBebida(enModificadores.categoria) && (
                 <>
                   <div className="grid gap-1.5">
-                    <Label>Tamaño</Label>
+                    <Label>Cambio de leche</Label>
                     <div className="grid grid-cols-3 gap-2">
-                      {TAMANOS.map((t) => (
-                        <button
-                          key={t.valor}
-                          type="button"
-                          onClick={() => setTamano(t.valor)}
-                          className={`rounded-lg border px-2 py-2 text-xs font-medium ${
-                            tamano === t.valor
-                              ? "border-foreground bg-foreground text-background"
-                              : "border-border bg-card"
-                          }`}
-                        >
-                          {t.valor}
-                          {t.extra !== 0 && (
-                            <span className="block text-[10px] opacity-70">
-                              {t.extra > 0 ? "+" : ""}
-                              {t.extra}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-1.5">
-                    <Label>Tipo de leche</Label>
-                    <div className="grid grid-cols-4 gap-2">
                       {LECHES.map((l) => (
                         <button
                           key={l.valor}

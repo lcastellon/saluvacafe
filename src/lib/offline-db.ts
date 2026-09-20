@@ -12,6 +12,7 @@ export type NegocioLocal = {
 };
 
 export type TiendaSnapshot = {
+  catalogoVersion?: number;
   productos: Producto[];
   pedidos: Pedido[];
   comandas?: Comanda[];

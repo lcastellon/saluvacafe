@@ -29,22 +29,34 @@ export const Route = createFileRoute("/_authenticated/menu")({
       { title: "Menú y productos · Salúva" },
       {
         name: "description",
-        content: "Administra la carta de Salúva: cafés, infusiones, panadería y desayunos con precio, costo y margen.",
+        content:
+          "Administra la carta de Salúva: espresso, cold brew, filtrados, matcha, bebidas y panadería.",
       },
       { property: "og:title", content: "Menú y productos · Salúva" },
-      { property: "og:description", content: "Precios, disponibilidad y margen de cada producto de la cafetería." },
+      {
+        property: "og:description",
+        content: "Precios, disponibilidad y margen de cada producto de la cafetería.",
+      },
     ],
   }),
   component: Menu,
 });
 
-const orden: Categoria[] = ["Café caliente", "Café frío", "Infusiones", "Panadería", "Desayunos"];
+const orden: Categoria[] = [
+  "Espresso",
+  "Cold brew",
+  "Filtrados",
+  "Matcha y hōjicha",
+  "Bebidas extra",
+  "Panadería",
+];
 
 function Menu() {
-  const { productos, toggleProducto, actualizarPrecio, crearProducto, eliminarProducto } = useTienda();
+  const { productos, toggleProducto, actualizarPrecio, crearProducto, eliminarProducto } =
+    useTienda();
   const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState("");
-  const [categoria, setCategoria] = useState<Categoria>("Café caliente");
+  const [categoria, setCategoria] = useState<Categoria>("Espresso");
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -53,7 +65,7 @@ function Menu() {
 
   const limpiar = () => {
     setNombre("");
-    setCategoria("Café caliente");
+    setCategoria("Espresso");
     setPrecio("");
     setCosto("");
     setDescripcion("");
@@ -96,7 +108,9 @@ function Menu() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Nuevo producto</DialogTitle>
-                <DialogDescription>Se agrega al menú y aparece de inmediato en el punto de venta.</DialogDescription>
+                <DialogDescription>
+                  Se agrega al menú y aparece de inmediato en el punto de venta.
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-3">
                 <div className="grid grid-cols-[70px_minmax(0,1fr)] gap-3">
@@ -106,7 +120,11 @@ function Menu() {
                   </div>
                   <div className="grid gap-1.5">
                     <Label>Nombre</Label>
-                    <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Latte de vainilla" />
+                    <Input
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      placeholder="Latte de vainilla"
+                    />
                   </div>
                 </div>
                 <div className="grid gap-1.5">
@@ -118,7 +136,9 @@ function Menu() {
                         type="button"
                         onClick={() => setCategoria(c)}
                         className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                          categoria === c ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
+                          categoria === c
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-card"
                         }`}
                       >
                         {c}
@@ -129,16 +149,30 @@ function Menu() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="grid gap-1.5">
                     <Label>Precio</Label>
-                    <Input type="number" min={0} value={precio} onChange={(e) => setPrecio(e.target.value)} />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={precio}
+                      onChange={(e) => setPrecio(e.target.value)}
+                    />
                   </div>
                   <div className="grid gap-1.5">
                     <Label>Costo</Label>
-                    <Input type="number" min={0} value={costo} onChange={(e) => setCosto(e.target.value)} />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={costo}
+                      onChange={(e) => setCosto(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Descripción</Label>
-                  <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
+                  <Textarea
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    rows={2}
+                  />
                 </div>
               </div>
               <DialogFooter>
@@ -150,12 +184,16 @@ function Menu() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={!!productoAEliminar} onOpenChange={(open) => !open && setProductoAEliminar(null)}>
+          <Dialog
+            open={!!productoAEliminar}
+            onOpenChange={(open) => !open && setProductoAEliminar(null)}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>¿Eliminar producto?</DialogTitle>
                 <DialogDescription>
-                  Se quitará <strong>{productoAEliminar?.nombre}</strong> del menú. Esta acción no se puede deshacer.
+                  Se quitará <strong>{productoAEliminar?.nombre}</strong> del menú. Esta acción no
+                  se puede deshacer.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -200,7 +238,9 @@ function Menu() {
                             <span className="mr-2">{p.emoji}</span>
                             {p.nombre}
                           </p>
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.descripcion}</p>
+                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {p.descripcion}
+                          </p>
                         </div>
                         <Switch checked={p.activo} onCheckedChange={() => toggleProducto(p.id)} />
                       </div>
@@ -208,13 +248,20 @@ function Menu() {
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {esBebida(p.categoria) ? (
                           <>
-                            <Badge variant="outline" className="text-[10px]">Tamaño</Badge>
-                            <Badge variant="outline" className="text-[10px]">Leche</Badge>
-                            <Badge variant="outline" className="text-[10px]">Extra shot</Badge>
-                            <Badge variant="outline" className="text-[10px]">Sin azúcar</Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              Cambio de leche
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              Extra shot
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              Sin azúcar
+                            </Badge>
                           </>
                         ) : (
-                          <Badge variant="outline" className="text-[10px]">Para llevar</Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            Para llevar
+                          </Badge>
                         )}
                       </div>
 
@@ -227,8 +274,14 @@ function Menu() {
                           className="h-9 w-24"
                         />
                         <div className="min-w-0 text-right text-xs text-muted-foreground">
-                          Costo {mxnExacto(p.costo)} · Margen{" "}
-                          <span className="font-semibold text-foreground">{margen}%</span>
+                          {p.costo > 0 ? (
+                            <>
+                              Costo {mxnExacto(p.costo)} · Margen{" "}
+                              <span className="font-semibold text-foreground">{margen}%</span>
+                            </>
+                          ) : (
+                            <span>Costo pendiente</span>
+                          )}
                         </div>
                         <Button
                           size="icon"

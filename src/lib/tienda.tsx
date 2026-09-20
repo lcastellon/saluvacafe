@@ -9,6 +9,9 @@ import {
   type ReactNode,
 } from "react";
 import {
+  CATALOGO_VERSION,
+  IVA_INCLUIDO,
+  desglosarIvaIncluido,
   productos as productosSeed,
   type Comanda,
   type EstadoPedido,
@@ -78,10 +81,10 @@ type Ctx = {
 const negocioInicial: Negocio = {
   nombre: "Salúva",
   sucursal: "Salúva Centro",
-  direccion: "Av. Reforma 118, Col. Juárez",
-  telefono: "55 4821 0093",
-  horario: "07:00 – 20:00",
-  iva: 16,
+  direccion: "",
+  telefono: "",
+  horario: "",
+  iva: IVA_INCLUIDO,
   propinaSugerida: 10,
   moneda: "MXN",
 };
@@ -224,11 +227,13 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       .then(([snapshot, pendientes]) => {
         if (!activo) return;
         if (snapshot) {
-          setProductos(snapshot.productos);
+          setProductos(
+            snapshot.catalogoVersion === CATALOGO_VERSION ? snapshot.productos : productosSeed,
+          );
           setPedidos(snapshot.pedidos.map((pedido) => normalizarPedido(pedido)));
           setComandas((snapshot.comandas ?? []).map((comanda) => normalizarComanda(comanda)));
           setComandasEliminadas(snapshot.comandasEliminadas ?? []);
-          setNegocio(snapshot.negocio);
+          setNegocio({ ...snapshot.negocio, iva: IVA_INCLUIDO });
         }
         setPendientesSincronizar(pendientes.length);
       })
@@ -254,11 +259,16 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (cargandoLocal) return;
-    void guardarSnapshot({ productos, pedidos, comandas, comandasEliminadas, negocio }).catch(
-      (error) => {
-        console.warn("No fue posible guardar los datos locales", error);
-      },
-    );
+    void guardarSnapshot({
+      catalogoVersion: CATALOGO_VERSION,
+      productos,
+      pedidos,
+      comandas,
+      comandasEliminadas,
+      negocio,
+    }).catch((error) => {
+      console.warn("No fue posible guardar los datos locales", error);
+    });
   }, [cargandoLocal, comandas, comandasEliminadas, negocio, pedidos, productos]);
 
   useEffect(() => {
@@ -311,6 +321,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         const normalizado = await guardarConfiguracionSucursal(siguiente);
         setNegocio(normalizado);
         await guardarSnapshot({
+          catalogoVersion: CATALOGO_VERSION,
           productos,
           pedidos,
           comandas,
@@ -472,8 +483,9 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       guardarComanda: ({ id, folio, cliente, canal, items, comensales }) => {
         const existente = id ? comandas.find((comanda) => comanda.id === id) : undefined;
         const creadoEn = existente?.creadoEn ?? new Date().toISOString();
-        const subtotal = items.reduce((suma, item) => suma + item.precio * item.cantidad, 0);
-        const iva = subtotal * (negocio.iva / 100);
+        const desglose = desglosarIvaIncluido(
+          items.reduce((suma, item) => suma + item.precio * item.cantidad, 0),
+        );
         const comanda: Comanda = normalizarComanda({
           id: existente?.id ?? idVenta(),
           folio: existente?.folio ?? folio ?? folioVenta(pedidos, creadoEn),
@@ -488,9 +500,9 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
             ...item,
             opciones: item.opciones ? [...item.opciones] : undefined,
           })),
-          subtotal,
-          iva,
-          total: subtotal + iva,
+          subtotal: desglose.subtotal,
+          iva: desglose.iva,
+          total: desglose.total,
           cajaId: cajaActual?.id,
           comensales,
           creadoEn,
@@ -522,8 +534,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         folio,
         estado = "En preparación",
       }) => {
-        const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
-        const iva = subtotal * (negocio.iva / 100);
+        const desglose = desglosarIvaIncluido(items.reduce((s, i) => s + i.precio * i.cantidad, 0));
         const creadoEn = new Date().toISOString();
         const nuevo: Pedido = {
           id: idVenta(),
@@ -538,11 +549,11 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
             minute: "2-digit",
           }),
           items,
-          subtotal,
-          iva,
-          total: subtotal + iva,
+          subtotal: desglose.subtotal,
+          iva: desglose.iva,
+          total: desglose.total,
           propina,
-          montoRecibido: montoRecibido ?? subtotal + iva + propina,
+          montoRecibido: montoRecibido ?? desglose.total + propina,
           cambio,
           comensales: Math.max(1, Math.floor(comensales)),
           creadoEn,

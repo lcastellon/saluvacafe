@@ -202,7 +202,7 @@ function interpretarConfiguracion(data: Json): NegocioLocal {
     direccion: texto("direccion"),
     telefono: texto("telefono"),
     horario: texto("horario"),
-    iva: numero("iva", 16),
+    iva: 16,
     propinaSugerida: numero("propinaSugerida", 10),
     moneda: texto("moneda") || "MXN",
   };
@@ -320,7 +320,7 @@ export function CajaTurnoProvider({ children }: { children: ReactNode }) {
         p_direccion: negocio.direccion.trim(),
         p_telefono: negocio.telefono.trim(),
         p_horario: negocio.horario.trim(),
-        p_iva: negocio.iva,
+        p_iva: 16,
         p_propina_sugerida: negocio.propinaSugerida,
         p_moneda: negocio.moneda.trim(),
       });

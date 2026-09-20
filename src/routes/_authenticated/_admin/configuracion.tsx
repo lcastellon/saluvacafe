@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { DoodleBolsa, DoodleTicket, DoodleTrazo } from "@/components/doodles";
 import { useTienda } from "@/lib/tienda";
 import { useCajaTurno } from "@/lib/caja-turno";
+import { IVA_INCLUIDO } from "@/data/saluva";
 import { cambiarCodigoPropio } from "@/lib/personal.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,12 @@ export const Route = createFileRoute("/_authenticated/_admin/configuracion")({
       {
         name: "description",
         content:
-          "Datos de la sucursal, impuestos, propina sugerida y preferencias de operación de la cafetería Salúva.",
+          "Datos de la sucursal, propina sugerida y preferencias de operación de la cafetería Salúva.",
       },
       { property: "og:title", content: "Configuración del negocio · Salúva" },
       {
         property: "og:description",
-        content: "Ajusta sucursal, horario, IVA y propina sugerida de Salúva.",
+        content: "Ajusta sucursal, horario y propina sugerida de Salúva.",
       },
     ],
   }),
@@ -66,7 +67,7 @@ function Configuracion() {
   };
 
   const guardarConfiguracion = useMutation({
-    mutationFn: () => guardarNegocio(form),
+    mutationFn: () => guardarNegocio({ ...form, iva: IVA_INCLUIDO }),
     onSuccess: (guardado) => {
       setForm(guardado);
       setFormSucio(false);
@@ -139,10 +140,12 @@ function Configuracion() {
             Cobro
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {campo("iva", "IVA (%)", "number")}
             {campo("propinaSugerida", "Propina sugerida (%)", "number")}
             {campo("moneda", "Moneda")}
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Los precios de la carta ya incluyen IVA. El ticket sólo muestra su desglose.
+          </p>
 
           <div className="mt-6 space-y-4 border-t border-border pt-4">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
