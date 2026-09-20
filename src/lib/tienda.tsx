@@ -498,7 +498,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
           }),
           items: items.map((item) => ({
             ...item,
-            opciones: item.opciones ? [...item.opciones] : undefined,
+            ...(item.opciones ? { opciones: [...item.opciones] } : {}),
           })),
           subtotal: desglose.subtotal,
           iva: desglose.iva,
