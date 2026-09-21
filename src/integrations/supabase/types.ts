@@ -196,36 +196,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pos_notas_turno: {
-        Row: {
-          actualizada_en: string
-          color: number
-          creada_en: string
-          creada_por: string
-          hecha: boolean
-          id: string
-          texto: string
-        }
-        Insert: {
-          actualizada_en?: string
-          color?: number
-          creada_en?: string
-          creada_por?: string
-          hecha?: boolean
-          id?: string
-          texto: string
-        }
-        Update: {
-          actualizada_en?: string
-          color?: number
-          creada_en?: string
-          creada_por?: string
-          hecha?: boolean
-          id?: string
-          texto?: string
-        }
-        Relationships: []
-      }
       pos_inventario_movimientos: {
         Row: {
           cantidad: number
@@ -270,6 +240,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pos_notas_turno: {
+        Row: {
+          actualizada_en: string
+          color: number
+          creada_en: string
+          creada_por: string
+          hecha: boolean
+          id: string
+          texto: string
+        }
+        Insert: {
+          actualizada_en?: string
+          color?: number
+          creada_en?: string
+          creada_por?: string
+          hecha?: boolean
+          id?: string
+          texto: string
+        }
+        Update: {
+          actualizada_en?: string
+          color?: number
+          creada_en?: string
+          creada_por?: string
+          hecha?: boolean
+          id?: string
+          texto?: string
+        }
+        Relationships: []
       }
       pos_recetas: {
         Row: {
