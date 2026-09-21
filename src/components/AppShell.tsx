@@ -57,7 +57,8 @@ export function AppShell({
 }) {
   const { perfil, esAdmin } = useAuth();
   const { enLinea, pendientesSincronizar, sincronizarAhora } = useTienda();
-  const { terminalAutorizada, terminalNombre, terminalSucursalNombre } = useCajaTurno();
+  const { terminalAutorizada, terminalNombre, terminalSucursalId, terminalSucursalNombre } =
+    useCajaTurno();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const listar = useServerFn(listarInsumos);
@@ -72,9 +73,10 @@ export function AppShell({
   }, [esAdmin, enLinea, prepararAdministradores, qc]);
 
   const { data: insumos } = useQuery({
-    queryKey: ["insumos"],
-    queryFn: () => listar() as Promise<Insumo[]>,
-    enabled: enLinea,
+    queryKey: ["insumos", terminalSucursalId],
+    queryFn: () =>
+      listar({ data: { sucursalId: terminalSucursalId } }) as Promise<Insumo[]>,
+    enabled: enLinea && Boolean(terminalSucursalId),
     retry: false,
   });
 

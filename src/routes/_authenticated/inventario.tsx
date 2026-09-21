@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
 import { useTienda } from "@/lib/tienda";
+import { useCajaTurno } from "@/lib/caja-turno";
 import { cargarInventario, guardarInventario, type InsumoLocal } from "@/lib/offline-db";
 import { supabase } from "@/integrations/supabase/client";
 import { mxn } from "@/data/saluva";
@@ -14,6 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -21,13 +29,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Minus, Plus, Pencil, Trash2, Package } from "lucide-react";
+import { Minus, Plus, Pencil, Trash2, Package, ListChecks } from "lucide-react";
 import { DoodleCaja } from "@/components/doodles";
 import {
   crearInsumo,
   actualizarInsumo,
   eliminarInsumo,
+  eliminarRecetaInventario,
+  guardarRecetaInventario,
   listarInsumos,
+  listarRecetasInventario,
+  type RecetaInventario,
 } from "@/lib/inventario.functions";
 import { toast } from "sonner";
 
@@ -63,7 +75,8 @@ const formularioVacio = {
 
 function Inventario() {
   const { esAdmin } = useAuth();
-  const { enLinea } = useTienda();
+  const { enLinea, productos } = useTienda();
+  const { terminalSucursalId, terminalSucursalNombre } = useCajaTurno();
   const qc = useQueryClient();
   const [inventarioLocal, setInventarioLocal] = useState<Insumo[]>([]);
 
@@ -71,11 +84,15 @@ function Inventario() {
   const crear = useServerFn(crearInsumo);
   const actualizar = useServerFn(actualizarInsumo);
   const eliminar = useServerFn(eliminarInsumo);
+  const listarRecetas = useServerFn(listarRecetasInventario);
+  const guardarReceta = useServerFn(guardarRecetaInventario);
+  const eliminarReceta = useServerFn(eliminarRecetaInventario);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["insumos"],
-    queryFn: () => listar() as Promise<Insumo[]>,
-    enabled: enLinea,
+    queryKey: ["insumos", terminalSucursalId],
+    queryFn: () =>
+      listar({ data: { sucursalId: terminalSucursalId } }) as Promise<Insumo[]>,
+    enabled: enLinea && Boolean(terminalSucursalId),
     retry: false,
   });
 
@@ -93,7 +110,7 @@ function Inventario() {
     );
   }, [data]);
 
-  const insumos = data ?? inventarioLocal;
+  const insumos = terminalSucursalId ? (data ?? inventarioLocal) : [];
   const valor = insumos.reduce(
     (s: number, i: Insumo) => s + Number(i.existencia) * Number(i.costo_unitario),
     0,
@@ -101,8 +118,29 @@ function Inventario() {
   const bajos = insumos.filter((i: Insumo) => Number(i.existencia) <= Number(i.minimo)).length;
 
   const [dialogoAbierto, setDialogoAbierto] = useState(false);
+  const [recetasAbiertas, setRecetasAbiertas] = useState(false);
   const [editando, setEditando] = useState<Insumo | null>(null);
   const [form, setForm] = useState(formularioVacio);
+  const [productoReceta, setProductoReceta] = useState(productos[0]?.id ?? "");
+  const [nuevoInsumoClave, setNuevoInsumoClave] = useState("");
+  const [nuevaCantidad, setNuevaCantidad] = useState("");
+  const [nuevaCondicion, setNuevaCondicion] = useState<"base" | "para_llevar">("base");
+
+  const { data: recetas, error: errorRecetas } = useQuery({
+    queryKey: ["recetas-inventario"],
+    queryFn: () => listarRecetas() as Promise<RecetaInventario[]>,
+    enabled: esAdmin && enLinea && recetasAbiertas,
+    retry: false,
+  });
+
+  const recetasProducto = useMemo(
+    () => (recetas ?? []).filter((receta) => receta.producto_id === productoReceta),
+    [productoReceta, recetas],
+  );
+  const insumoPorClave = useMemo(
+    () => new Map(insumos.map((insumo) => [insumo.clave, insumo])),
+    [insumos],
+  );
 
   const abrirCrear = () => {
     if (!enLinea) return;
@@ -125,7 +163,14 @@ function Inventario() {
     setDialogoAbierto(true);
   };
 
-  const invalidar = () => void qc.invalidateQueries({ queryKey: ["insumos"] });
+  const abrirRecetas = () => {
+    if (!productoReceta && productos[0]) setProductoReceta(productos[0].id);
+    if (!nuevoInsumoClave && insumos[0]) setNuevoInsumoClave(insumos[0].clave);
+    setRecetasAbiertas(true);
+  };
+
+  const invalidar = () =>
+    void qc.invalidateQueries({ queryKey: ["insumos", terminalSucursalId] });
   const onError = (e: unknown) => toast.error(e instanceof Error ? e.message : "Ocurrió un error");
 
   const mCrear = useMutation({
@@ -138,6 +183,7 @@ function Inventario() {
           minimo: Number(form.minimo),
           costoUnitario: Number(form.costoUnitario),
           proveedor: form.proveedor,
+          sucursalId: terminalSucursalId ?? "",
         },
       }),
     onSuccess: () => {
@@ -212,36 +258,62 @@ function Inventario() {
       return { id, existencia: Number(existencia) };
     },
     onMutate: async ({ id, delta }) => {
-      await qc.cancelQueries({ queryKey: ["insumos"] });
-      const anteriores = qc.getQueryData<InsumoLocal[]>(["insumos"]) ?? inventarioLocal;
+      const claveConsulta = ["insumos", terminalSucursalId];
+      await qc.cancelQueries({ queryKey: claveConsulta });
+      const anteriores = qc.getQueryData<InsumoLocal[]>(claveConsulta) ?? inventarioLocal;
       const siguientes = anteriores.map((insumo) =>
         insumo.id === id
           ? { ...insumo, existencia: Math.max(0, Number(insumo.existencia) + delta) }
           : insumo,
       );
-      qc.setQueryData(["insumos"], siguientes);
+      qc.setQueryData(claveConsulta, siguientes);
       setInventarioLocal(siguientes);
       void guardarInventario(siguientes);
       return { anteriores };
     },
     onSuccess: ({ id, existencia }) => {
-      const actuales = qc.getQueryData<InsumoLocal[]>(["insumos"]) ?? inventarioLocal;
+      const claveConsulta = ["insumos", terminalSucursalId];
+      const actuales = qc.getQueryData<InsumoLocal[]>(claveConsulta) ?? inventarioLocal;
       const confirmados = actuales.map((insumo) =>
         insumo.id === id ? { ...insumo, existencia } : insumo,
       );
-      qc.setQueryData(["insumos"], confirmados);
+      qc.setQueryData(claveConsulta, confirmados);
       setInventarioLocal(confirmados);
       void guardarInventario(confirmados);
     },
     onError: (error, _variables, contexto) => {
       if (contexto?.anteriores) {
-        qc.setQueryData(["insumos"], contexto.anteriores);
+        qc.setQueryData(["insumos", terminalSucursalId], contexto.anteriores);
         setInventarioLocal(contexto.anteriores);
         void guardarInventario(contexto.anteriores);
       }
       onError(error);
     },
     onSettled: invalidar,
+  });
+
+  const mGuardarReceta = useMutation({
+    mutationFn: (receta: {
+      productoId: string;
+      insumoClave: string;
+      cantidad: number;
+      condicion: "base" | "para_llevar";
+    }) => guardarReceta({ data: receta }),
+    onSuccess: () => {
+      toast.success("Receta actualizada");
+      setNuevaCantidad("");
+      void qc.invalidateQueries({ queryKey: ["recetas-inventario"] });
+    },
+    onError,
+  });
+
+  const mEliminarReceta = useMutation({
+    mutationFn: (id: string) => eliminarReceta({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Consumo eliminado de la receta");
+      void qc.invalidateQueries({ queryKey: ["recetas-inventario"] });
+    },
+    onError,
   });
 
   const guardar = (e: React.FormEvent) => {
@@ -268,20 +340,55 @@ function Inventario() {
           <Badge variant="secondary">Valor {mxn(valor)}</Badge>
           <Badge variant={bajos ? "destructive" : "default"}>{bajos} por reponer</Badge>
           {esAdmin && (
-            <Button onClick={abrirCrear} disabled={!enLinea} className="hidden sm:inline-flex">
-              <Package className="mr-1.5 h-4 w-4" />
-              Nuevo insumo
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={abrirRecetas}
+                disabled={!enLinea || !terminalSucursalId}
+                className="hidden sm:inline-flex"
+              >
+                <ListChecks className="mr-1.5 h-4 w-4" />
+                Recetas
+              </Button>
+              <Button
+                onClick={abrirCrear}
+                disabled={!enLinea || !terminalSucursalId}
+                className="hidden sm:inline-flex"
+              >
+                <Package className="mr-1.5 h-4 w-4" />
+                Nuevo insumo
+              </Button>
+            </>
           )}
         </>
       }
     >
       {esAdmin && (
-        <div className="mb-4 sm:hidden">
-          <Button onClick={abrirCrear} disabled={!enLinea} className="w-full">
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
+          <Button
+            variant="outline"
+            onClick={abrirRecetas}
+            disabled={!enLinea || !terminalSucursalId}
+          >
+            <ListChecks className="mr-1.5 h-4 w-4" />
+            Recetas
+          </Button>
+          <Button onClick={abrirCrear} disabled={!enLinea || !terminalSucursalId}>
             <Package className="mr-1.5 h-4 w-4" />
             Nuevo insumo
           </Button>
+        </div>
+      )}
+
+      {!terminalSucursalId && (
+        <div className="mb-4 rounded-xl border border-border bg-cream px-4 py-3 text-sm text-muted-foreground">
+          Autoriza este dispositivo y asígnalo a una sucursal para consultar su inventario.
+        </div>
+      )}
+
+      {terminalSucursalId && (
+        <div className="mb-4 text-sm text-muted-foreground">
+          Inventario de <span className="font-medium text-foreground">{terminalSucursalNombre}</span>
         </div>
       )}
 
@@ -479,6 +586,159 @@ function Inventario() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={recetasAbiertas} onOpenChange={setRecetasAbiertas}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Recetas de inventario</DialogTitle>
+            <DialogDescription>
+              Define cuánto se descuenta al cobrar cada producto. “Para llevar” sólo consume el
+              insumo cuando la bebida usa empaque.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label>Producto</Label>
+              <Select value={productoReceta} onValueChange={setProductoReceta}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un producto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {productos.map((producto) => (
+                    <SelectItem key={producto.id} value={producto.id}>
+                      {producto.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-xl border border-border">
+              {errorRecetas ? (
+                <p className="p-4 text-sm text-destructive">
+                  Falta aplicar la migración de recetas e inventario en Supabase.
+                </p>
+              ) : recetasProducto.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">
+                  Este producto todavía no tiene consumos configurados.
+                </p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {recetasProducto.map((receta) => {
+                    const insumo = insumoPorClave.get(receta.insumo_clave);
+                    return (
+                      <div
+                        key={receta.id}
+                        className="grid grid-cols-[minmax(0,1fr)_88px_36px] items-center gap-3 p-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">
+                            {insumo?.nombre ?? receta.insumo_clave}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {receta.condicion === "para_llevar" ? "Sólo para llevar" : "Siempre"}
+                            {insumo ? ` · ${insumo.unidad}` : ""}
+                          </p>
+                        </div>
+                        <Input
+                          key={`${receta.id}-${receta.cantidad}`}
+                          defaultValue={String(receta.cantidad)}
+                          inputMode="decimal"
+                          aria-label={`Cantidad de ${insumo?.nombre ?? receta.insumo_clave}`}
+                          onBlur={(evento) => {
+                            const cantidad = Number(evento.target.value);
+                            if (cantidad > 0 && cantidad !== Number(receta.cantidad)) {
+                              mGuardarReceta.mutate({
+                                productoId: receta.producto_id,
+                                insumoClave: receta.insumo_clave,
+                                cantidad,
+                                condicion: receta.condicion,
+                              });
+                            }
+                          }}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => mEliminarReceta.mutate(receta.id)}
+                          disabled={mEliminarReceta.isPending}
+                          aria-label="Eliminar consumo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-dashed border-border p-4">
+              <p className="mb-3 text-sm font-medium">Agregar consumo</p>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px_100px_auto]">
+                <Select value={nuevoInsumoClave} onValueChange={setNuevoInsumoClave}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Insumo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {insumos.map((insumo) => (
+                      <SelectItem key={insumo.id} value={insumo.clave}>
+                        {insumo.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={nuevaCondicion}
+                  onValueChange={(valor) =>
+                    setNuevaCondicion(valor as "base" | "para_llevar")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="base">Siempre</SelectItem>
+                    <SelectItem value="para_llevar">Para llevar</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={nuevaCantidad}
+                  onChange={(evento) => setNuevaCantidad(evento.target.value)}
+                  inputMode="decimal"
+                  placeholder="Cantidad"
+                />
+                <Button
+                  type="button"
+                  onClick={() =>
+                    mGuardarReceta.mutate({
+                      productoId: productoReceta,
+                      insumoClave: nuevoInsumoClave,
+                      cantidad: Number(nuevaCantidad),
+                      condicion: nuevaCondicion,
+                    })
+                  }
+                  disabled={
+                    mGuardarReceta.isPending ||
+                    !productoReceta ||
+                    !nuevoInsumoClave ||
+                    !(Number(nuevaCantidad) > 0)
+                  }
+                >
+                  Agregar
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Si se elige leche de avena o soya en el punto de venta, el sistema sustituye
+              automáticamente la leche entera de la receta. Un extra shot descuenta 18 g
+              adicionales de café de la casa.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </AppShell>

@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useTienda } from "@/lib/tienda";
+import { useCajaTurno } from "@/lib/caja-turno";
 import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn } from "@/data/saluva";
 import { esHoy, productosMasVendidos, ventasPorHora, ventasUltimosSieteDias } from "@/lib/metricas";
@@ -401,11 +402,13 @@ function TableroNotas() {
 
 function Dashboard() {
   const { pedidos, comandas, enLinea } = useTienda();
+  const { terminalSucursalId } = useCajaTurno();
   const listar = useServerFn(listarInsumos);
   const { data: insumos } = useQuery({
-    queryKey: ["insumos"],
-    queryFn: () => listar() as Promise<Insumo[]>,
-    enabled: enLinea,
+    queryKey: ["insumos", terminalSucursalId],
+    queryFn: () =>
+      listar({ data: { sucursalId: terminalSucursalId } }) as Promise<Insumo[]>,
+    enabled: enLinea && Boolean(terminalSucursalId),
     retry: false,
   });
   const pedidosHoy = pedidos.filter((pedido) => esHoy(pedido.creadoEn));

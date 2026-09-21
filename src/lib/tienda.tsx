@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CATALOGO_VERSION,
   IVA_INCLUIDO,
@@ -191,6 +192,7 @@ function ejecutarRpc(nombre: string, argumentos?: Record<string, Json>): Promise
 }
 
 export function TiendaProvider({ children }: { children: ReactNode }) {
+  const qc = useQueryClient();
   const { session } = useAuth();
   const {
     cajaActual,
@@ -412,12 +414,13 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
           (a, b) => new Date(b.creadoEn).getTime() - new Date(a.creadoEn).getTime(),
         );
       });
+      await qc.invalidateQueries({ queryKey: ["insumos", terminalSucursalId] });
     } catch (error) {
       console.warn("No fue posible sincronizar las ventas pendientes", error);
     } finally {
       sincronizando.current = false;
     }
-  }, [session]);
+  }, [qc, session, terminalSucursalId]);
 
   useEffect(() => {
     if (enLinea && session) void sincronizarAhora();

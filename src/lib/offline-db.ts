@@ -22,6 +22,8 @@ export type TiendaSnapshot = {
 
 export type InsumoLocal = {
   id: string;
+  clave: string;
+  sucursal_id: string;
   nombre: string;
   unidad: string;
   existencia: number;
