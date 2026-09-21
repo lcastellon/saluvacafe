@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useTienda } from "@/lib/tienda";
+import { useAuth } from "@/lib/auth";
 import { useCajaTurno } from "@/lib/caja-turno";
 import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn } from "@/data/saluva";
