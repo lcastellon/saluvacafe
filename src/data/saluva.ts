@@ -606,6 +606,8 @@ export type Pedido = {
   total: number;
   metodoPago: "Efectivo" | "Tarjeta" | "Transferencia";
   cajaId?: string | undefined;
+  sucursalId?: string | undefined;
+  sucursalNombre?: string | undefined;
   propina?: number;
   montoRecibido?: number;
   cambio?: number;
