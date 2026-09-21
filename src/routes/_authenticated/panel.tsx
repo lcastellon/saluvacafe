@@ -588,9 +588,12 @@ function Dashboard() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  {filtroSucursal === "todas" && "sucursalNombre" in pedido && pedido.sucursalNombre && (
-                    <Badge variant="outline">{pedido.sucursalNombre}</Badge>
-                  )}
+                  {filtroSucursal === "todas" &&
+                    "sucursalNombre" in pedido &&
+                    typeof pedido.sucursalNombre === "string" &&
+                    pedido.sucursalNombre.length > 0 && (
+                      <Badge variant="outline">{pedido.sucursalNombre}</Badge>
+                    )}
                   <Badge variant={pedido.estado === "Listo" ? "default" : "secondary"}>
                     {pedido.estado}
                   </Badge>
