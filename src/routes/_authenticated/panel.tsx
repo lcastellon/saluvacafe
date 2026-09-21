@@ -401,9 +401,13 @@ function TableroNotas() {
   );
 }
 
+type SucursalOpcion = { id: string; nombre: string };
+
 function Dashboard() {
   const { pedidos, comandas, enLinea } = useTienda();
+  const { esAdmin } = useAuth();
   const { terminalSucursalId } = useCajaTurno();
+  const [filtroSucursal, setFiltroSucursal] = useState<string>("todas");
   const listar = useServerFn(listarInsumos);
   const { data: insumos } = useQuery({
     queryKey: ["insumos", terminalSucursalId],
@@ -412,15 +416,35 @@ function Dashboard() {
     enabled: enLinea && Boolean(terminalSucursalId),
     retry: false,
   });
-  const pedidosHoy = pedidos.filter((pedido) => esHoy(pedido.creadoEn));
+  const { data: sucursales } = useQuery({
+    queryKey: ["sucursales-panel"],
+    queryFn: async () => {
+      const cliente = supabase as unknown as {
+        rpc: (fn: string) => Promise<{ data: unknown; error: unknown }>;
+      };
+      const { data, error } = await cliente.rpc("listar_sucursales_pos");
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as SucursalOpcion[];
+    },
+    enabled: enLinea && esAdmin,
+    retry: false,
+  });
+  const pedidosFiltrados = useMemo(
+    () =>
+      filtroSucursal === "todas"
+        ? pedidos
+        : pedidos.filter((pedido) => (pedido.sucursalId ?? "") === filtroSucursal),
+    [pedidos, filtroSucursal],
+  );
+  const pedidosHoy = pedidosFiltrados.filter((pedido) => esHoy(pedido.creadoEn));
   const ventasDia = pedidosHoy.reduce((suma, pedido) => suma + pedido.total, 0);
   const tickets = pedidosHoy.length;
   const activos = [
     ...comandas.filter((comanda) => comanda.estado !== "Entregado"),
-    ...pedidos.filter((pedido) => pedido.estado !== "Entregado"),
+    ...pedidosFiltrados.filter((pedido) => pedido.estado !== "Entregado"),
   ];
-  const horas = ventasPorHora(pedidos);
-  const semana = ventasUltimosSieteDias(pedidos);
+  const horas = ventasPorHora(pedidosFiltrados);
+  const semana = ventasUltimosSieteDias(pedidosFiltrados);
   const top = productosMasVendidos(pedidosHoy);
   const bajos = (insumos ?? []).filter((i: Insumo) => Number(i.existencia) <= Number(i.minimo));
   const criticos = (insumos ?? []).filter(
