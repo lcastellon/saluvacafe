@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useTienda } from "@/lib/tienda";
+import { useAuth } from "@/lib/auth";
 import { useCajaTurno } from "@/lib/caja-turno";
 import { DoodleTrazo, DoodleGrano, DoodleFlor } from "@/components/doodles";
 import { mxn } from "@/data/saluva";
@@ -400,9 +401,13 @@ function TableroNotas() {
   );
 }
 
+type SucursalOpcion = { id: string; nombre: string };
+
 function Dashboard() {
   const { pedidos, comandas, enLinea } = useTienda();
+  const { esAdmin } = useAuth();
   const { terminalSucursalId } = useCajaTurno();
+  const [filtroSucursal, setFiltroSucursal] = useState<string>("todas");
   const listar = useServerFn(listarInsumos);
   const { data: insumos } = useQuery({
     queryKey: ["insumos", terminalSucursalId],
@@ -411,15 +416,35 @@ function Dashboard() {
     enabled: enLinea && Boolean(terminalSucursalId),
     retry: false,
   });
-  const pedidosHoy = pedidos.filter((pedido) => esHoy(pedido.creadoEn));
+  const { data: sucursales } = useQuery({
+    queryKey: ["sucursales-panel"],
+    queryFn: async () => {
+      const cliente = supabase as unknown as {
+        rpc: (fn: string) => Promise<{ data: unknown; error: unknown }>;
+      };
+      const { data, error } = await cliente.rpc("listar_sucursales_pos");
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as SucursalOpcion[];
+    },
+    enabled: enLinea && esAdmin,
+    retry: false,
+  });
+  const pedidosFiltrados = useMemo(
+    () =>
+      filtroSucursal === "todas"
+        ? pedidos
+        : pedidos.filter((pedido) => (pedido.sucursalId ?? "") === filtroSucursal),
+    [pedidos, filtroSucursal],
+  );
+  const pedidosHoy = pedidosFiltrados.filter((pedido) => esHoy(pedido.creadoEn));
   const ventasDia = pedidosHoy.reduce((suma, pedido) => suma + pedido.total, 0);
   const tickets = pedidosHoy.length;
   const activos = [
     ...comandas.filter((comanda) => comanda.estado !== "Entregado"),
-    ...pedidos.filter((pedido) => pedido.estado !== "Entregado"),
+    ...pedidosFiltrados.filter((pedido) => pedido.estado !== "Entregado"),
   ];
-  const horas = ventasPorHora(pedidos);
-  const semana = ventasUltimosSieteDias(pedidos);
+  const horas = ventasPorHora(pedidosFiltrados);
+  const semana = ventasUltimosSieteDias(pedidosFiltrados);
   const top = productosMasVendidos(pedidosHoy);
   const bajos = (insumos ?? []).filter((i: Insumo) => Number(i.existencia) <= Number(i.minimo));
   const criticos = (insumos ?? []).filter(
@@ -429,6 +454,30 @@ function Dashboard() {
   return (
     <AppShell titulo="Buen día, Salúva" descripcion="Resumen real del turno de hoy">
       <ControlCaja />
+      {esAdmin && (sucursales?.length ?? 0) > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Ventas de
+          </span>
+          <Button
+            size="sm"
+            variant={filtroSucursal === "todas" ? "default" : "outline"}
+            onClick={() => setFiltroSucursal("todas")}
+          >
+            Todas las sucursales
+          </Button>
+          {sucursales!.map((sucursal) => (
+            <Button
+              key={sucursal.id}
+              size="sm"
+              variant={filtroSucursal === sucursal.id ? "default" : "outline"}
+              onClick={() => setFiltroSucursal(sucursal.id)}
+            >
+              {sucursal.nombre}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="Ventas del día"
@@ -539,6 +588,12 @@ function Dashboard() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
+                  {filtroSucursal === "todas" &&
+                    "sucursalNombre" in pedido &&
+                    typeof pedido.sucursalNombre === "string" &&
+                    pedido.sucursalNombre.length > 0 && (
+                      <Badge variant="outline">{pedido.sucursalNombre}</Badge>
+                    )}
                   <Badge variant={pedido.estado === "Listo" ? "default" : "secondary"}>
                     {pedido.estado}
                   </Badge>

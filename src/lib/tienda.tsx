@@ -347,8 +347,16 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       const pendientes = await listarPendientes();
       for (const pedido of pendientes) {
         const pedidoNormalizado = normalizarPedido(pedido);
+        const pedidoConSucursal = {
+          ...pedidoNormalizado,
+          ...(pedidoNormalizado.sucursalId
+            ? {}
+            : terminalSucursalId
+              ? { sucursalId: terminalSucursalId }
+              : {}),
+        };
         const { error } = await ejecutarRpc("sincronizar_venta_pos", {
-          p_venta: pedidoNormalizado as unknown as Json,
+          p_venta: pedidoConSucursal as unknown as Json,
         });
         if (error) throw error;
         await eliminarPendiente(pedido.id);

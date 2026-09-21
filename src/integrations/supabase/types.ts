@@ -441,6 +441,7 @@ export type Database = {
           monto_recibido: number
           propina: number
           subtotal: number
+          sucursal_id: string | null
           total: number
           user_id: string
         }
@@ -462,6 +463,7 @@ export type Database = {
           monto_recibido?: number
           propina?: number
           subtotal: number
+          sucursal_id?: string | null
           total: number
           user_id: string
         }
@@ -483,6 +485,7 @@ export type Database = {
           monto_recibido?: number
           propina?: number
           subtotal?: number
+          sucursal_id?: string | null
           total?: number
           user_id?: string
         }
@@ -492,6 +495,13 @@ export type Database = {
             columns: ["caja_id"]
             isOneToOne: false
             referencedRelation: "pos_cajas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_ventas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sucursales"
             referencedColumns: ["id"]
           },
         ]
