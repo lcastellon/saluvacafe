@@ -454,6 +454,30 @@ function Dashboard() {
   return (
     <AppShell titulo="Buen día, Salúva" descripcion="Resumen real del turno de hoy">
       <ControlCaja />
+      {esAdmin && (sucursales?.length ?? 0) > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Ventas de
+          </span>
+          <Button
+            size="sm"
+            variant={filtroSucursal === "todas" ? "default" : "outline"}
+            onClick={() => setFiltroSucursal("todas")}
+          >
+            Todas las sucursales
+          </Button>
+          {sucursales!.map((sucursal) => (
+            <Button
+              key={sucursal.id}
+              size="sm"
+              variant={filtroSucursal === sucursal.id ? "default" : "outline"}
+              onClick={() => setFiltroSucursal(sucursal.id)}
+            >
+              {sucursal.nombre}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="Ventas del día"
@@ -564,6 +588,9 @@ function Dashboard() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
+                  {filtroSucursal === "todas" && "sucursalNombre" in pedido && pedido.sucursalNombre && (
+                    <Badge variant="outline">{pedido.sucursalNombre}</Badge>
+                  )}
                   <Badge variant={pedido.estado === "Listo" ? "default" : "secondary"}>
                     {pedido.estado}
                   </Badge>
