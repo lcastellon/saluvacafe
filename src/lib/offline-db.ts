@@ -41,6 +41,10 @@ const SNAPSHOT_KEY = "tienda";
 const INVENTARIO_KEY = "inventario";
 const TERMINAL_TOKEN_KEY = "terminal-token";
 
+function claveInventario(sucursalId?: string | null) {
+  return sucursalId ? `${INVENTARIO_KEY}:${sucursalId}` : INVENTARIO_KEY;
+}
+
 function abrirDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -84,21 +88,36 @@ export async function guardarSnapshot(snapshot: TiendaSnapshot): Promise<void> {
   }
 }
 
-export async function cargarInventario(): Promise<InsumoLocal[]> {
+export async function cargarInventario(sucursalId?: string | null): Promise<InsumoLocal[]> {
   const db = await abrirDb();
   try {
     const tx = db.transaction(STORE_ESTADO, "readonly");
-    return (await esperar(tx.objectStore(STORE_ESTADO).get(INVENTARIO_KEY))) ?? [];
+    const store = tx.objectStore(STORE_ESTADO);
+    const guardadoRequest = esperar<InsumoLocal[] | undefined>(
+      store.get(claveInventario(sucursalId)),
+    );
+    const anteriorRequest = sucursalId
+      ? esperar<InsumoLocal[] | undefined>(store.get(INVENTARIO_KEY))
+      : Promise.resolve(undefined);
+    const [guardado, anteriorGuardado] = await Promise.all([guardadoRequest, anteriorRequest]);
+    if (guardado) return guardado;
+
+    // Compatibilidad con la copia creada antes de separar el inventario por sucursal.
+    const anterior = anteriorGuardado ?? [];
+    return sucursalId ? anterior.filter((insumo) => insumo.sucursal_id === sucursalId) : anterior;
   } finally {
     db.close();
   }
 }
 
-export async function guardarInventario(insumos: InsumoLocal[]): Promise<void> {
+export async function guardarInventario(
+  insumos: InsumoLocal[],
+  sucursalId?: string | null,
+): Promise<void> {
   const db = await abrirDb();
   try {
     const tx = db.transaction(STORE_ESTADO, "readwrite");
-    await esperar(tx.objectStore(STORE_ESTADO).put(insumos, INVENTARIO_KEY));
+    await esperar(tx.objectStore(STORE_ESTADO).put(insumos, claveInventario(sucursalId)));
   } finally {
     db.close();
   }

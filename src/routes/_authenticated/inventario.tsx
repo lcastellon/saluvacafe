@@ -76,9 +76,17 @@ const formularioVacio = {
 function Inventario() {
   const { esAdmin } = useAuth();
   const { enLinea, productos } = useTienda();
-  const { terminalSucursalId, terminalSucursalNombre } = useCajaTurno();
+  const { terminalSucursalId, terminalSucursalNombre, sucursales } = useCajaTurno();
   const qc = useQueryClient();
   const [inventarioLocal, setInventarioLocal] = useState<Insumo[]>([]);
+  const [sucursalAdminId, setSucursalAdminId] = useState("");
+
+  const sucursalInventarioId = esAdmin
+    ? sucursalAdminId || terminalSucursalId || sucursales[0]?.id || null
+    : terminalSucursalId;
+  const sucursalInventarioNombre =
+    sucursales.find((sucursal) => sucursal.id === sucursalInventarioId)?.nombre ??
+    (sucursalInventarioId === terminalSucursalId ? terminalSucursalNombre : null);
 
   const listar = useServerFn(listarInsumos);
   const crear = useServerFn(crearInsumo);
@@ -89,28 +97,33 @@ function Inventario() {
   const eliminarReceta = useServerFn(eliminarRecetaInventario);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["insumos", terminalSucursalId],
+    queryKey: ["insumos", sucursalInventarioId],
     queryFn: () =>
-      listar({ data: { sucursalId: terminalSucursalId } }) as Promise<Insumo[]>,
-    enabled: enLinea && Boolean(terminalSucursalId),
+      listar({ data: { sucursalId: sucursalInventarioId } }) as Promise<Insumo[]>,
+    enabled: enLinea && Boolean(sucursalInventarioId),
     retry: false,
   });
 
   useEffect(() => {
-    void cargarInventario()
+    if (!sucursalInventarioId) {
+      setInventarioLocal([]);
+      return;
+    }
+    setInventarioLocal([]);
+    void cargarInventario(sucursalInventarioId)
       .then(setInventarioLocal)
       .catch((error) => console.warn("No fue posible cargar el inventario local", error));
-  }, []);
+  }, [sucursalInventarioId]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || !sucursalInventarioId) return;
     setInventarioLocal(data);
-    void guardarInventario(data).catch((error) =>
+    void guardarInventario(data, sucursalInventarioId).catch((error) =>
       console.warn("No fue posible guardar el inventario local", error),
     );
-  }, [data]);
+  }, [data, sucursalInventarioId]);
 
-  const insumos = terminalSucursalId ? (data ?? inventarioLocal) : [];
+  const insumos = sucursalInventarioId ? (data ?? inventarioLocal) : [];
   const valor = insumos.reduce(
     (s: number, i: Insumo) => s + Number(i.existencia) * Number(i.costo_unitario),
     0,
@@ -170,7 +183,7 @@ function Inventario() {
   };
 
   const invalidar = () =>
-    void qc.invalidateQueries({ queryKey: ["insumos", terminalSucursalId] });
+    void qc.invalidateQueries({ queryKey: ["insumos", sucursalInventarioId] });
   const onError = (e: unknown) => toast.error(e instanceof Error ? e.message : "Ocurrió un error");
 
   const mCrear = useMutation({
@@ -183,7 +196,7 @@ function Inventario() {
           minimo: Number(form.minimo),
           costoUnitario: Number(form.costoUnitario),
           proveedor: form.proveedor,
-          sucursalId: terminalSucursalId ?? "",
+          sucursalId: sucursalInventarioId ?? "",
         },
       }),
     onSuccess: () => {
@@ -258,7 +271,7 @@ function Inventario() {
       return { id, existencia: Number(existencia) };
     },
     onMutate: async ({ id, delta }) => {
-      const claveConsulta = ["insumos", terminalSucursalId];
+      const claveConsulta = ["insumos", sucursalInventarioId];
       await qc.cancelQueries({ queryKey: claveConsulta });
       const anteriores = qc.getQueryData<InsumoLocal[]>(claveConsulta) ?? inventarioLocal;
       const siguientes = anteriores.map((insumo) =>
@@ -268,24 +281,24 @@ function Inventario() {
       );
       qc.setQueryData(claveConsulta, siguientes);
       setInventarioLocal(siguientes);
-      void guardarInventario(siguientes);
+      void guardarInventario(siguientes, sucursalInventarioId);
       return { anteriores };
     },
     onSuccess: ({ id, existencia }) => {
-      const claveConsulta = ["insumos", terminalSucursalId];
+      const claveConsulta = ["insumos", sucursalInventarioId];
       const actuales = qc.getQueryData<InsumoLocal[]>(claveConsulta) ?? inventarioLocal;
       const confirmados = actuales.map((insumo) =>
         insumo.id === id ? { ...insumo, existencia } : insumo,
       );
       qc.setQueryData(claveConsulta, confirmados);
       setInventarioLocal(confirmados);
-      void guardarInventario(confirmados);
+      void guardarInventario(confirmados, sucursalInventarioId);
     },
     onError: (error, _variables, contexto) => {
       if (contexto?.anteriores) {
-        qc.setQueryData(["insumos", terminalSucursalId], contexto.anteriores);
+        qc.setQueryData(["insumos", sucursalInventarioId], contexto.anteriores);
         setInventarioLocal(contexto.anteriores);
-        void guardarInventario(contexto.anteriores);
+        void guardarInventario(contexto.anteriores, sucursalInventarioId);
       }
       onError(error);
     },
@@ -344,7 +357,7 @@ function Inventario() {
               <Button
                 variant="outline"
                 onClick={abrirRecetas}
-                disabled={!enLinea || !terminalSucursalId}
+                disabled={!enLinea || !sucursalInventarioId}
                 className="hidden sm:inline-flex"
               >
                 <ListChecks className="mr-1.5 h-4 w-4" />
@@ -352,7 +365,7 @@ function Inventario() {
               </Button>
               <Button
                 onClick={abrirCrear}
-                disabled={!enLinea || !terminalSucursalId}
+                disabled={!enLinea || !sucursalInventarioId}
                 className="hidden sm:inline-flex"
               >
                 <Package className="mr-1.5 h-4 w-4" />
@@ -368,27 +381,72 @@ function Inventario() {
           <Button
             variant="outline"
             onClick={abrirRecetas}
-            disabled={!enLinea || !terminalSucursalId}
+            disabled={!enLinea || !sucursalInventarioId}
           >
             <ListChecks className="mr-1.5 h-4 w-4" />
             Recetas
           </Button>
-          <Button onClick={abrirCrear} disabled={!enLinea || !terminalSucursalId}>
+          <Button onClick={abrirCrear} disabled={!enLinea || !sucursalInventarioId}>
             <Package className="mr-1.5 h-4 w-4" />
             Nuevo insumo
           </Button>
         </div>
       )}
 
-      {!terminalSucursalId && (
-        <div className="mb-4 rounded-xl border border-border bg-cream px-4 py-3 text-sm text-muted-foreground">
-          Autoriza este dispositivo y asígnalo a una sucursal para consultar su inventario.
+      {esAdmin && (
+        <div className="mb-4 rounded-xl border border-border bg-card p-4">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] sm:items-center">
+            <div>
+              <Label htmlFor="sucursal-inventario">Sucursal del inventario</Label>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Consulta y ajusta las existencias independientes de cada sucursal.
+              </p>
+            </div>
+            <Select
+              value={sucursalInventarioId ?? ""}
+              onValueChange={(sucursalId) => {
+                setSucursalAdminId(sucursalId);
+                setDialogoAbierto(false);
+                setRecetasAbiertas(false);
+                setEditando(null);
+              }}
+              disabled={
+                !sucursales.length ||
+                mCrear.isPending ||
+                mActualizar.isPending ||
+                mEliminar.isPending ||
+                mAjustar.isPending
+              }
+            >
+              <SelectTrigger id="sucursal-inventario" aria-label="Sucursal del inventario">
+                <SelectValue placeholder="Selecciona una sucursal" />
+              </SelectTrigger>
+              <SelectContent>
+                {sucursales.map((sucursal) => (
+                  <SelectItem key={sucursal.id} value={sucursal.id}>
+                    {sucursal.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
-      {terminalSucursalId && (
+      {!sucursalInventarioId && (
+        <div className="mb-4 rounded-xl border border-border bg-cream px-4 py-3 text-sm text-muted-foreground">
+          {esAdmin
+            ? "Registra una sucursal para consultar su inventario."
+            : "Autoriza este dispositivo y asígnalo a una sucursal para consultar su inventario."}
+        </div>
+      )}
+
+      {sucursalInventarioId && (
         <div className="mb-4 text-sm text-muted-foreground">
-          Inventario de <span className="font-medium text-foreground">{terminalSucursalNombre}</span>
+          Inventario de{" "}
+          <span className="font-medium text-foreground">
+            {sucursalInventarioNombre ?? "Sucursal seleccionada"}
+          </span>
         </div>
       )}
 
