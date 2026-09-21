@@ -17,6 +17,7 @@ export type Database = {
       insumos: {
         Row: {
           activo: boolean
+          clave: string
           costo_unitario: number
           created_at: string
           existencia: number
@@ -24,11 +25,13 @@ export type Database = {
           minimo: number
           nombre: string
           proveedor: string
+          sucursal_id: string
           unidad: string
           updated_at: string
         }
         Insert: {
           activo?: boolean
+          clave: string
           costo_unitario?: number
           created_at?: string
           existencia?: number
@@ -36,11 +39,13 @@ export type Database = {
           minimo?: number
           nombre: string
           proveedor?: string
+          sucursal_id: string
           unidad: string
           updated_at?: string
         }
         Update: {
           activo?: boolean
+          clave?: string
           costo_unitario?: number
           created_at?: string
           existencia?: number
@@ -48,10 +53,19 @@ export type Database = {
           minimo?: number
           nombre?: string
           proveedor?: string
+          sucursal_id?: string
           unidad?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "insumos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       perfiles: {
         Row: {
@@ -182,6 +196,51 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_inventario_movimientos: {
+        Row: {
+          cantidad: number
+          creado_en: string
+          existencia_anterior: number
+          existencia_nueva: number
+          id: string
+          insumo_id: string
+          venta_id: string
+        }
+        Insert: {
+          cantidad: number
+          creado_en?: string
+          existencia_anterior: number
+          existencia_nueva: number
+          id?: string
+          insumo_id: string
+          venta_id: string
+        }
+        Update: {
+          cantidad?: number
+          creado_en?: string
+          existencia_anterior?: number
+          existencia_nueva?: number
+          id?: string
+          insumo_id?: string
+          venta_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_inventario_movimientos_insumo_id_fkey"
+            columns: ["insumo_id"]
+            isOneToOne: false
+            referencedRelation: "insumos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_inventario_movimientos_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: false
+            referencedRelation: "pos_ventas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_notas_turno: {
         Row: {
           actualizada_en: string
@@ -209,6 +268,36 @@ export type Database = {
           hecha?: boolean
           id?: string
           texto?: string
+        }
+        Relationships: []
+      }
+      pos_recetas: {
+        Row: {
+          activa: boolean
+          actualizada_en: string
+          cantidad: number
+          condicion: string
+          id: string
+          insumo_clave: string
+          producto_id: string
+        }
+        Insert: {
+          activa?: boolean
+          actualizada_en?: string
+          cantidad: number
+          condicion?: string
+          id?: string
+          insumo_clave: string
+          producto_id: string
+        }
+        Update: {
+          activa?: boolean
+          actualizada_en?: string
+          cantidad?: number
+          condicion?: string
+          id?: string
+          insumo_clave?: string
+          producto_id?: string
         }
         Relationships: []
       }
@@ -346,6 +435,7 @@ export type Database = {
           estado: string
           folio: string
           id: string
+          inventario_aplicado: boolean
           iva: number
           metodo_pago: string
           monto_recibido: number
@@ -366,6 +456,7 @@ export type Database = {
           estado: string
           folio: string
           id?: string
+          inventario_aplicado?: boolean
           iva: number
           metodo_pago: string
           monto_recibido?: number
@@ -386,6 +477,7 @@ export type Database = {
           estado?: string
           folio?: string
           id?: string
+          inventario_aplicado?: boolean
           iva?: number
           metodo_pago?: string
           monto_recibido?: number

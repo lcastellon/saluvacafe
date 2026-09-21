@@ -8,6 +8,13 @@
       "when": 1789948621909,
       "tag": "0000_unificar_configuracion_sucursal_terminal",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789959610564,
+      "tag": "0001_vincular_ventas_inventario",
+      "breakpoints": true
     }
   ]
 }
