@@ -262,7 +262,7 @@ function Inventario() {
   return (
     <AppShell
       titulo="Inventario"
-      descripcion="Insumos de barra, cocina y empaque"
+      descripcion="Insumos de barra, panadería y empaque"
       acciones={
         <>
           <Badge variant="secondary">Valor {mxn(valor)}</Badge>
