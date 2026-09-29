@@ -12,6 +12,8 @@ import {
   desglosarIvaIncluido,
   type Categoria,
   type LineaPedido,
+  type MetodoPago,
+  type PagoPedido,
   type Pedido,
   type Producto,
 } from "@/data/saluva";
@@ -77,6 +79,7 @@ function DetalleTicket({
   propina = 0,
   montoRecibido = 0,
   cambio = 0,
+  pagos,
   comensales,
 }: {
   referencia: string;
@@ -100,10 +103,17 @@ function DetalleTicket({
   propina?: number;
   montoRecibido?: number;
   cambio?: number;
+  pagos?: PagoPedido[];
   comensales: number;
 }) {
   const fechaLocal = new Date(fecha);
   const montoCobrado = total + propina;
+  const pagosMostrados: PagoPedido[] =
+    pagos && pagos.length > 0
+      ? pagos
+      : metodoPago && metodoPago !== "Mixto"
+        ? [{ metodo: metodoPago, monto: montoCobrado, recibido: montoRecibido, cambio }]
+        : [];
 
   return (
     <div className="font-mono text-[12px] leading-snug text-black">
@@ -193,14 +203,29 @@ function DetalleTicket({
               <span>Monto cobrado</span>
               <span>{mxnExacto(montoCobrado)}</span>
             </div>
-            <div className="flex justify-between">
-              <span>{metodoPago === "Efectivo" ? "Efectivo recibido" : "Monto recibido"}</span>
-              <span>{mxnExacto(montoRecibido)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>{metodoPago === "Efectivo" ? "Cambio exacto" : "Cambio"}</span>
-              <span>{mxnExacto(cambio)}</span>
-            </div>
+            {pagosMostrados.map((pago, indice) => (
+              <div
+                key={`${pago.metodo}-${indice}`}
+                className="mt-2 border-t border-dotted border-black/50 pt-2"
+              >
+                <div className="flex justify-between font-bold">
+                  <span>{pago.metodo}</span>
+                  <span>{mxnExacto(pago.monto)}</span>
+                </div>
+                {pago.metodo === "Efectivo" ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Efectivo recibido</span>
+                      <span>{mxnExacto(pago.recibido)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Cambio exacto</span>
+                      <span>{mxnExacto(pago.cambio)}</span>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -316,13 +341,16 @@ function Caja() {
   const [cliente, setCliente] = useState("");
   const [canal, setCanal] = useState<Pedido["canal"]>("A mesa");
   const [comensalesTexto, setComensalesTexto] = useState("1");
-  const [pago, setPago] = useState<Pedido["metodoPago"]>("Efectivo");
+  const [pago, setPago] = useState<MetodoPago>("Efectivo");
   const [tocado, setTocado] = useState<string | null>(null);
   const [preTicket, setPreTicket] = useState<{ referencia: string; fecha: string } | null>(null);
   const [cobroAbierto, setCobroAbierto] = useState(false);
   const [propinaTexto, setPropinaTexto] = useState("0");
   const [recibidoTexto, setRecibidoTexto] = useState("");
   const [calculadoraEfectivo, setCalculadoraEfectivo] = useState(false);
+  const [cobroParcial, setCobroParcial] = useState(false);
+  const [montoParcialTexto, setMontoParcialTexto] = useState("");
+  const [pagosParciales, setPagosParciales] = useState<PagoPedido[]>([]);
   const [ticketCobrado, setTicketCobrado] = useState<Pedido | null>(null);
   const [comandaPrevia, setComandaPrevia] = useState<ComandaPrevia | null>(null);
   const [comandaAbierta, setComandaAbierta] = useState(false);
@@ -389,6 +417,16 @@ function Caja() {
       ? Math.round(propinaIngresada * 100) / 100
       : 0;
   const montoCobrar = Math.round((total + propina) * 100) / 100;
+  const totalPagado = Math.round(
+    pagosParciales.reduce((suma, pagoParcial) => suma + pagoParcial.monto, 0) * 100,
+  ) / 100;
+  const saldoPendiente = Math.max(0, Math.round((montoCobrar - totalPagado) * 100) / 100);
+  const montoParcialIngresado = Number(montoParcialTexto);
+  const montoParcial =
+    Number.isFinite(montoParcialIngresado) && montoParcialIngresado > 0
+      ? Math.round(montoParcialIngresado * 100) / 100
+      : 0;
+  const montoObjetivoEfectivo = cobroParcial ? montoParcial : montoCobrar;
   const recibidoIngresado = Number(recibidoTexto);
   const montoRecibido =
     pago === "Efectivo"
@@ -396,8 +434,14 @@ function Caja() {
         ? Math.round(recibidoIngresado * 100) / 100
         : 0
       : montoCobrar;
-  const cambio = Math.max(0, Math.round((montoRecibido - montoCobrar) * 100) / 100);
-  const faltante = Math.max(0, Math.round((montoCobrar - montoRecibido) * 100) / 100);
+  const cambio = Math.max(
+    0,
+    Math.round((montoRecibido - montoObjetivoEfectivo) * 100) / 100,
+  );
+  const faltanteEfectivo = Math.max(
+    0,
+    Math.round((montoObjetivoEfectivo - montoRecibido) * 100) / 100,
+  );
 
   const abrirModificadores = (p: Producto) => {
     setTocado(p.id);
@@ -468,7 +512,67 @@ function Caja() {
     setPropinaTexto("0");
     setRecibidoTexto("");
     setCalculadoraEfectivo(false);
+    setCobroParcial(false);
+    setMontoParcialTexto("");
+    setPagosParciales([]);
     setCobroAbierto(true);
+  };
+
+  const activarCobroParcial = () => {
+    setCobroParcial(true);
+    setPagosParciales([]);
+    setMontoParcialTexto((montoCobrar / 2).toFixed(2));
+    setRecibidoTexto("");
+    setCalculadoraEfectivo(false);
+  };
+
+  const volverACobroCompleto = () => {
+    setCobroParcial(false);
+    setPagosParciales([]);
+    setMontoParcialTexto("");
+    setRecibidoTexto("");
+    setCalculadoraEfectivo(false);
+  };
+
+  const agregarPagoParcial = () => {
+    if (montoParcial <= 0) {
+      toast.error("Ingresa el monto que se pagará con este método");
+      return;
+    }
+    if (montoParcial > saldoPendiente + 0.001) {
+      toast.error("El pago parcial supera el saldo pendiente", {
+        description: `Faltan por cubrir ${mxnExacto(saldoPendiente)}`,
+      });
+      return;
+    }
+    if (pago === "Efectivo" && montoRecibido < montoParcial) {
+      toast.error("El efectivo recibido no cubre este pago", {
+        description: `Faltan ${mxnExacto(montoParcial - montoRecibido)}`,
+      });
+      return;
+    }
+
+    const nuevoPago: PagoPedido = {
+      metodo: pago,
+      monto: montoParcial,
+      recibido: pago === "Efectivo" ? montoRecibido : montoParcial,
+      cambio: pago === "Efectivo" ? cambio : 0,
+    };
+    const siguienteSaldo = Math.max(
+      0,
+      Math.round((saldoPendiente - montoParcial) * 100) / 100,
+    );
+    setPagosParciales((actuales) => [...actuales, nuevoPago]);
+    setMontoParcialTexto(siguienteSaldo > 0 ? siguienteSaldo.toFixed(2) : "");
+    setRecibidoTexto("");
+    setCalculadoraEfectivo(false);
+  };
+
+  const eliminarPagoParcial = (indice: number) => {
+    const eliminado = pagosParciales[indice];
+    setPagosParciales((actuales) => actuales.filter((_, actual) => actual !== indice));
+    if (eliminado) setMontoParcialTexto(eliminado.monto.toFixed(2));
+    setRecibidoTexto("");
   };
 
   const escribirCalculadora = (tecla: string) => {
@@ -493,7 +597,13 @@ function Caja() {
       toast.error("Ingresa una propina válida");
       return;
     }
-    if (pago === "Efectivo" && montoRecibido < montoCobrar) {
+    if (cobroParcial && saldoPendiente > 0.001) {
+      toast.error("La cuenta todavía tiene saldo pendiente", {
+        description: `Faltan ${mxnExacto(saldoPendiente)}`,
+      });
+      return;
+    }
+    if (!cobroParcial && pago === "Efectivo" && montoRecibido < montoCobrar) {
       toast.error("El efectivo recibido no cubre el monto a cobrar", {
         description: `Faltan ${mxnExacto(montoCobrar - montoRecibido)}`,
       });
@@ -505,14 +615,34 @@ function Caja() {
       return;
     }
 
+    const pagosFinales: PagoPedido[] = cobroParcial
+      ? pagosParciales
+      : [
+          {
+            metodo: pago,
+            monto: montoCobrar,
+            recibido: pago === "Efectivo" ? montoRecibido : montoCobrar,
+            cambio: pago === "Efectivo" ? cambio : 0,
+          },
+        ];
+    const metodosFinales = new Set(pagosFinales.map((pagoFinal) => pagoFinal.metodo));
+    const metodoFinal: Pedido["metodoPago"] =
+      metodosFinales.size > 1 ? "Mixto" : (pagosFinales[0]?.metodo ?? pago);
+    const recibidoFinal = pagosFinales.reduce(
+      (suma, pagoFinal) => suma + pagoFinal.recibido,
+      0,
+    );
+    const cambioFinal = pagosFinales.reduce((suma, pagoFinal) => suma + pagoFinal.cambio, 0);
+
     const pedido = crearPedido({
       cliente,
       canal,
-      metodoPago: pago,
+      metodoPago: metodoFinal,
+      pagos: pagosFinales,
       items,
       propina,
-      montoRecibido,
-      cambio,
+      montoRecibido: Math.round(recibidoFinal * 100) / 100,
+      cambio: Math.round(cambioFinal * 100) / 100,
       comensales,
       ...(folioComandaActiva ?? comandaPrevia?.folio
         ? { folio: (folioComandaActiva ?? comandaPrevia?.folio) as string }
@@ -540,6 +670,9 @@ function Caja() {
     setItems([]);
     setCliente("");
     setComensalesTexto("1");
+    setCobroParcial(false);
+    setMontoParcialTexto("");
+    setPagosParciales([]);
   };
 
   const abrirPreTicket = () => {
@@ -946,7 +1079,7 @@ function Caja() {
       </Dialog>
 
       <Dialog open={cobroAbierto} onOpenChange={setCobroAbierto}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirmar cobro</DialogTitle>
             <DialogDescription>
@@ -963,19 +1096,25 @@ function Caja() {
               </div>
               <div className="mt-2 flex justify-between text-sm">
                 <span>Método de pago</span>
-                <span className="font-semibold">{pago}</span>
+                <span className="font-semibold">{cobroParcial ? "Pago dividido" : pago}</span>
               </div>
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="propina">Propina</Label>
               <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" onClick={() => setPropinaTexto("0")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pagosParciales.length > 0}
+                  onClick={() => setPropinaTexto("0")}
+                >
                   Sin propina
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={pagosParciales.length > 0}
                   onClick={() =>
                     setPropinaTexto((Math.round(total * negocio.propinaSugerida) / 100).toFixed(2))
                   }
@@ -992,10 +1131,143 @@ function Caja() {
                 value={propinaTexto}
                 onChange={(evento) => setPropinaTexto(evento.target.value)}
                 placeholder="0.00"
+                disabled={pagosParciales.length > 0}
               />
             </div>
 
-            {pago === "Efectivo" && (
+            {!cobroParcial ? (
+              <div className="rounded-xl border border-warning/60 bg-warning/10 p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-warning/70 bg-background font-semibold hover:bg-warning/15"
+                  onClick={activarCobroParcial}
+                >
+                  Cobrar parcialmente
+                </Button>
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Divide la cuenta o combina efectivo, tarjeta y transferencia.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-warning/60 bg-warning/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">Cobro parcial</p>
+                    <p className="text-xs text-muted-foreground">
+                      Agrega un pago y continúa con el siguiente.
+                    </p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={volverACobroCompleto}>
+                    Cobro completo
+                  </Button>
+                </div>
+
+                {pagosParciales.length > 0 ? (
+                  <div className="space-y-2">
+                    {pagosParciales.map((pagoParcial, indice) => (
+                      <div
+                        key={`${pagoParcial.metodo}-${indice}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold">{pagoParcial.metodo}</p>
+                          {pagoParcial.metodo === "Efectivo" ? (
+                            <p className="text-xs text-muted-foreground">
+                              Recibido {mxnExacto(pagoParcial.recibido)} · Cambio{" "}
+                              {mxnExacto(pagoParcial.cambio)}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{mxnExacto(pagoParcial.monto)}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label={`Eliminar pago de ${pagoParcial.metodo}`}
+                            onClick={() => eliminarPagoParcial(indice)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="grid grid-cols-3 gap-2">
+                  {(["Efectivo", "Tarjeta", "Transferencia"] as const).map((metodo) => (
+                    <button
+                      key={metodo}
+                      type="button"
+                      onClick={() => {
+                        setPago(metodo);
+                        setRecibidoTexto("");
+                        setCalculadoraEfectivo(false);
+                      }}
+                      disabled={!enLinea && metodo !== "Efectivo"}
+                      className={`rounded-lg border px-2 py-2 text-xs font-medium ${
+                        pago === metodo
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background"
+                      } disabled:cursor-not-allowed disabled:opacity-40`}
+                    >
+                      {metodo}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="monto-parcial">Monto de este pago</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="bg-background"
+                      disabled={saldoPendiente <= 0}
+                      onClick={() => setMontoParcialTexto((saldoPendiente / 2).toFixed(2))}
+                    >
+                      Mitad del saldo
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="bg-background"
+                      disabled={saldoPendiente <= 0}
+                      onClick={() => setMontoParcialTexto(saldoPendiente.toFixed(2))}
+                    >
+                      Saldo completo
+                    </Button>
+                  </div>
+                  <Input
+                    id="monto-parcial"
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    max={saldoPendiente}
+                    step="0.01"
+                    value={montoParcialTexto}
+                    onChange={(evento) => {
+                      setMontoParcialTexto(evento.target.value);
+                      setRecibidoTexto("");
+                    }}
+                    placeholder={saldoPendiente.toFixed(2)}
+                    disabled={saldoPendiente <= 0}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                  <span className="text-sm font-semibold">Saldo pendiente</span>
+                  <span className="font-display text-xl font-bold">{mxnExacto(saldoPendiente)}</span>
+                </div>
+              </div>
+            )}
+
+            {pago === "Efectivo" && (!cobroParcial || saldoPendiente > 0) && (
               <div className="grid gap-2">
                 <Label htmlFor="monto-recibido">Efectivo recibido</Label>
                 <div className="grid grid-cols-3 gap-2">
@@ -1003,7 +1275,7 @@ function Caja() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setRecibidoTexto(montoCobrar.toFixed(2))}
+                    onClick={() => setRecibidoTexto(montoObjetivoEfectivo.toFixed(2))}
                   >
                     Exacto
                   </Button>
@@ -1037,7 +1309,7 @@ function Caja() {
                   step="0.01"
                   value={recibidoTexto}
                   onChange={(evento) => setRecibidoTexto(evento.target.value)}
-                  placeholder={montoCobrar.toFixed(2)}
+                  placeholder={montoObjetivoEfectivo.toFixed(2)}
                   autoFocus
                 />
 
@@ -1082,20 +1354,31 @@ function Caja() {
 
                 <div
                   className={`mt-1 flex items-center justify-between rounded-xl border px-4 py-3 ${
-                    faltante > 0
+                    faltanteEfectivo > 0
                       ? "border-warning/50 bg-warning/10"
                       : "border-primary/35 bg-primary/10"
                   }`}
                 >
                   <span className="text-sm font-semibold">
-                    {faltante > 0 ? "Falta por recibir" : "Cambio exacto"}
+                    {faltanteEfectivo > 0 ? "Falta por recibir" : "Cambio exacto"}
                   </span>
                   <span className="font-display text-2xl font-bold">
-                    {mxnExacto(faltante > 0 ? faltante : cambio)}
+                    {mxnExacto(faltanteEfectivo > 0 ? faltanteEfectivo : cambio)}
                   </span>
                 </div>
               </div>
             )}
+
+            {cobroParcial && saldoPendiente > 0 ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={agregarPagoParcial}
+                disabled={montoParcial <= 0 || montoParcial > saldoPendiente}
+              >
+                Agregar pago de {pago}
+              </Button>
+            ) : null}
 
             <div className="space-y-2 border-t border-border pt-4">
               <div className="flex justify-between font-display text-xl font-bold">
@@ -1109,7 +1392,9 @@ function Caja() {
             <Button variant="outline" onClick={() => setCobroAbierto(false)}>
               Cancelar
             </Button>
-            <Button onClick={confirmarCobro}>Confirmar</Button>
+            <Button onClick={confirmarCobro} disabled={cobroParcial && saldoPendiente > 0.001}>
+              Confirmar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1234,6 +1519,7 @@ function Caja() {
                 propina={ticketCobrado.propina ?? 0}
                 montoRecibido={ticketCobrado.montoRecibido ?? 0}
                 cambio={ticketCobrado.cambio ?? 0}
+                {...(ticketCobrado.pagos ? { pagos: ticketCobrado.pagos } : {})}
                 comensales={ticketCobrado.comensales}
               />
             </div>
@@ -1269,6 +1555,7 @@ function Caja() {
             propina={ticketCobrado.propina ?? 0}
             montoRecibido={ticketCobrado.montoRecibido ?? 0}
             cambio={ticketCobrado.cambio ?? 0}
+            {...(ticketCobrado.pagos ? { pagos: ticketCobrado.pagos } : {})}
             comensales={ticketCobrado.comensales}
           />
         </div>

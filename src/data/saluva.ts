@@ -593,6 +593,15 @@ export function desglosarIvaIncluido(totalBruto: number) {
   };
 }
 
+export type MetodoPago = "Efectivo" | "Tarjeta" | "Transferencia";
+
+export type PagoPedido = {
+  metodo: MetodoPago;
+  monto: number;
+  recibido: number;
+  cambio: number;
+};
+
 export type Pedido = {
   id: string;
   folio: string;
@@ -604,7 +613,8 @@ export type Pedido = {
   subtotal: number;
   iva: number;
   total: number;
-  metodoPago: "Efectivo" | "Tarjeta" | "Transferencia";
+  metodoPago: MetodoPago | "Mixto";
+  pagos?: PagoPedido[];
   cajaId?: string | undefined;
   sucursalId?: string | undefined;
   sucursalNombre?: string | undefined;
@@ -615,6 +625,56 @@ export type Pedido = {
   creadoEn: string;
   sincronizacion: "pendiente" | "sincronizado";
 };
+
+export function pagosDePedido(pedido: Pedido): PagoPedido[] {
+  const pagos = (pedido.pagos ?? []).filter(
+    (pago) =>
+      ["Efectivo", "Tarjeta", "Transferencia"].includes(pago.metodo) &&
+      Number.isFinite(Number(pago.monto)) &&
+      Number(pago.monto) > 0,
+  );
+  if (pagos.length > 0) {
+    return pagos.map((pago) => ({
+      metodo: pago.metodo,
+      monto: Math.round(Number(pago.monto) * 100) / 100,
+      recibido: Math.round(Number(pago.recibido ?? pago.monto) * 100) / 100,
+      cambio: Math.round(Number(pago.cambio ?? 0) * 100) / 100,
+    }));
+  }
+
+  const metodo: MetodoPago = pedido.metodoPago === "Mixto" ? "Efectivo" : pedido.metodoPago;
+  const monto = Math.round((pedido.total + (pedido.propina ?? 0)) * 100) / 100;
+  return [
+    {
+      metodo,
+      monto,
+      recibido: Math.round(Number(pedido.montoRecibido ?? monto) * 100) / 100,
+      cambio: Math.round(Number(pedido.cambio ?? 0) * 100) / 100,
+    },
+  ];
+}
+
+export function desglosarPagosPedido(pedido: Pedido) {
+  const pagos = pagosDePedido(pedido);
+  const propinaTotal = Math.round(Number(pedido.propina ?? 0) * 100) / 100;
+  const montoTotal = Math.round((pedido.total + propinaTotal) * 100) / 100;
+  let ventaAsignada = 0;
+  let propinaAsignada = 0;
+
+  return pagos.map((pago, indice) => {
+    const ultimo = indice === pagos.length - 1;
+    const proporcion = montoTotal > 0 ? pago.monto / montoTotal : 0;
+    const venta = ultimo
+      ? Math.round((pedido.total - ventaAsignada) * 100) / 100
+      : Math.round(pedido.total * proporcion * 100) / 100;
+    const propina = ultimo
+      ? Math.round((propinaTotal - propinaAsignada) * 100) / 100
+      : Math.round(propinaTotal * proporcion * 100) / 100;
+    ventaAsignada += venta;
+    propinaAsignada += propina;
+    return { ...pago, venta, propina };
+  });
+}
 
 export type Comanda = {
   id: string;

@@ -13,10 +13,12 @@ import {
   CATALOGO_VERSION,
   IVA_INCLUIDO,
   desglosarIvaIncluido,
+  pagosDePedido,
   productos as productosSeed,
   type Comanda,
   type EstadoPedido,
   type LineaPedido,
+  type PagoPedido,
   type Pedido,
   type Producto,
 } from "@/data/saluva";
@@ -69,6 +71,7 @@ type Ctx = {
     cliente: string;
     canal: Pedido["canal"];
     metodoPago: Pedido["metodoPago"];
+    pagos?: PagoPedido[];
     items: LineaPedido[];
     propina?: number;
     montoRecibido?: number;
@@ -153,9 +156,13 @@ function normalizarPedido(
       : canalAnterior === "App"
         ? "Para recoger"
         : pedido.canal;
+  const pagos = pagosDePedido(pedido);
+  const metodos = new Set(pagos.map((pago) => pago.metodo));
   return {
     ...pedido,
     canal,
+    metodoPago: metodos.size > 1 ? "Mixto" : (pagos[0]?.metodo ?? pedido.metodoPago),
+    pagos,
     comensales: Math.max(1, Math.floor(Number(pedido.comensales) || 1)),
     sincronizacion,
   };
@@ -537,6 +544,7 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
         cliente,
         canal,
         metodoPago,
+        pagos,
         items,
         propina = 0,
         montoRecibido,
@@ -547,12 +555,39 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
       }) => {
         const desglose = desglosarIvaIncluido(items.reduce((s, i) => s + i.precio * i.cantidad, 0));
         const creadoEn = new Date().toISOString();
+        const montoTotal = Math.round((desglose.total + propina) * 100) / 100;
+        const pagosNormalizados: PagoPedido[] =
+          pagos && pagos.length > 0
+            ? pagos.map((pago) => ({
+                metodo: enLinea ? pago.metodo : "Efectivo",
+                monto: Math.round(pago.monto * 100) / 100,
+                recibido: Math.round(pago.recibido * 100) / 100,
+                cambio: Math.round(pago.cambio * 100) / 100,
+              }))
+            : [
+                {
+                  metodo:
+                    enLinea && metodoPago !== "Mixto" ? metodoPago : ("Efectivo" as const),
+                  monto: montoTotal,
+                  recibido: Math.round(Number(montoRecibido ?? montoTotal) * 100) / 100,
+                  cambio: Math.round(cambio * 100) / 100,
+                },
+              ];
+        const metodosPago = new Set(pagosNormalizados.map((pago) => pago.metodo));
+        const metodoFinal: Pedido["metodoPago"] =
+          metodosPago.size > 1 ? "Mixto" : (pagosNormalizados[0]?.metodo ?? "Efectivo");
+        const recibidoFinal = pagosNormalizados.reduce(
+          (suma, pago) => suma + pago.recibido,
+          0,
+        );
+        const cambioFinal = pagosNormalizados.reduce((suma, pago) => suma + pago.cambio, 0);
         const nuevo: Pedido = {
           id: idVenta(),
           folio: folio ?? folioVenta(pedidos, creadoEn),
           cliente: cliente || (canal === "A mesa" ? "Mesa" : "Cliente"),
           canal,
-          metodoPago: enLinea ? metodoPago : "Efectivo",
+          metodoPago: metodoFinal,
+          pagos: pagosNormalizados,
           cajaId: cajaActual?.id,
           estado,
           hora: new Date(creadoEn).toLocaleTimeString("es-MX", {
@@ -564,8 +599,8 @@ export function TiendaProvider({ children }: { children: ReactNode }) {
           iva: desglose.iva,
           total: desglose.total,
           propina,
-          montoRecibido: montoRecibido ?? desglose.total + propina,
-          cambio,
+          montoRecibido: Math.round(recibidoFinal * 100) / 100,
+          cambio: Math.round(cambioFinal * 100) / 100,
           comensales: Math.max(1, Math.floor(comensales)),
           creadoEn,
           sincronizacion: "pendiente",

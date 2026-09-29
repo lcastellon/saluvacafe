@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ReporteCajaPeriodico } from "@/components/ReporteCajaPeriodico";
 import { DoodleFlor, DoodleGrano, DoodleTicket, DoodleTrazo } from "@/components/doodles";
-import { mxn } from "@/data/saluva";
+import { desglosarPagosPedido, mxn } from "@/data/saluva";
 import { useTienda } from "@/lib/tienda";
 import {
   productosMasVendidos,
@@ -57,8 +57,9 @@ function Reportes() {
   const pagos = (["Efectivo", "Tarjeta", "Transferencia"] as const).map((metodo) => ({
     metodo,
     monto: pedidosSemana
-      .filter((pedido) => pedido.metodoPago === metodo)
-      .reduce((suma, pedido) => suma + pedido.total, 0),
+      .flatMap(desglosarPagosPedido)
+      .filter((pago) => pago.metodo === metodo)
+      .reduce((suma, pago) => suma + pago.venta, 0),
   }));
   const totalSemana = pedidosSemana.reduce((suma, pedido) => suma + pedido.total, 0);
   const ticketsSemana = pedidosSemana.length;

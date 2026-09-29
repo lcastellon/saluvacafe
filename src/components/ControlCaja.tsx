@@ -15,7 +15,12 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { useCajaTurno, type CajaActual } from "@/lib/caja-turno";
 import { useTienda } from "@/lib/tienda";
-import { mxnExacto, type Pedido } from "@/data/saluva";
+import {
+  desglosarPagosPedido,
+  mxnExacto,
+  type MetodoPago,
+  type Pedido,
+} from "@/data/saluva";
 import {
   Clock3,
   Laptop,
@@ -68,7 +73,7 @@ type CorteCaja = {
   saldoFinalEstimado: number;
   efectivoTotalEstimado: number;
   diferenciaEfectivo: number;
-  formas: Record<Pedido["metodoPago"], ResumenFormaPago>;
+  formas: Record<MetodoPago, ResumenFormaPago>;
   tiposOrden: Record<Pedido["canal"], { operaciones: number; ventas: number }>;
   cuentasIniciadas: number;
   cuentasCerradas: number;
@@ -105,10 +110,12 @@ function crearCorte({
   const ventasDeCaja = pedidos.filter((pedido) => pedido.cajaId === caja.id);
 
   for (const pedido of ventasDeCaja) {
-    const forma = formas[pedido.metodoPago];
-    forma.operaciones += 1;
-    forma.ventas += pedido.total;
-    forma.propinas += pedido.propina ?? 0;
+    for (const pago of desglosarPagosPedido(pedido)) {
+      const forma = formas[pago.metodo];
+      forma.operaciones += 1;
+      forma.ventas += pago.venta;
+      forma.propinas += pago.propina;
+    }
     const tipo = tiposOrden[pedido.canal];
     tipo.operaciones += 1;
     tipo.ventas += pedido.total;
