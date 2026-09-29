@@ -422,47 +422,6 @@ export type Database = {
           },
         ]
       }
-      pos_venta_pagos: {
-        Row: {
-          cambio: number
-          creado_en: string
-          id: string
-          metodo_pago: string
-          monto: number
-          monto_recibido: number
-          orden: number
-          venta_id: string
-        }
-        Insert: {
-          cambio?: number
-          creado_en?: string
-          id?: string
-          metodo_pago: string
-          monto: number
-          monto_recibido?: number
-          orden: number
-          venta_id: string
-        }
-        Update: {
-          cambio?: number
-          creado_en?: string
-          id?: string
-          metodo_pago?: string
-          monto?: number
-          monto_recibido?: number
-          orden?: number
-          venta_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pos_venta_pagos_venta_id_fkey"
-            columns: ["venta_id"]
-            isOneToOne: false
-            referencedRelation: "pos_ventas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pos_ventas: {
         Row: {
           actualizado_en: string
