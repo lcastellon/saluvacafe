@@ -56,7 +56,7 @@ export type RecetaInventario = {
   activa: boolean;
 };
 
-export const listarInsumos = createServerFn({ method: "GET" })
+export const listarInsumos = createServerFn({ method: "POST" })
   .validator((input?: { sucursalId?: string | null }) => ({
     sucursalId: input?.sucursalId?.trim() || null,
   }))
